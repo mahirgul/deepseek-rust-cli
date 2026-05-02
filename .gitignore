@@ -1,0 +1,51 @@
+# ====================
+# Rust
+# ====================
+/target/
+**/*.rs.bk
+*.pdb
+
+# ====================
+# IDE / Editor
+# ====================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.settings/
+*.sublime-*
+*.code-workspace
+
+# ====================
+# OS
+# ====================
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ====================
+# Environment
+# ====================
+.env
+.env.local
+.env.*.local
+
+# ====================
+# Build artifacts
+# ====================
+build/
+dist/
+*.log
+*.tmp
+*.temp
+
+# ====================
+# Deep (internal agent state)
+# ====================
+.deep/memory.md
+

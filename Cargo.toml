@@ -1,0 +1,23 @@
+[package]
+name = "deepseek-rust-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.6.1", features = ["derive"] }
+colored = "3.1.1"
+dotenvy = "0.15.7"
+futures = "0.3.32"
+reqwest = { version = "0.12.28", features = ["json", "rustls-tls", "stream"], default-features = false }
+reqwest-eventsource = "0.6.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tokio = { version = "1.52.1", features = ["full"] }
+tokio-stream = "0.1.18"
+rustyline = "15.0.0"
+termimad = "0.31.1"
+html2text = "0.13.5"
+regex = "1.11.1"
+anyhow = "1.0.95"
+syntect = "5.2.0"
+tiktoken-rs = "0.6.0"
