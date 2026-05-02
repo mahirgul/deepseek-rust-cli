@@ -209,9 +209,7 @@ impl DeepSeekAgent {
                                 {
                                     full_reasoning.push_str(&reasoning);
                                     if tx
-                                        .send(AgentEvent::Reasoning {
-                                            content: reasoning,
-                                        })
+                                        .send(AgentEvent::Reasoning { content: reasoning })
                                         .await
                                         .is_err()
                                     {
@@ -222,11 +220,7 @@ impl DeepSeekAgent {
                                     choice.delta.content.filter(|c| !c.is_empty())
                                 {
                                     full_content.push_str(&content);
-                                    if tx
-                                        .send(AgentEvent::Content { content })
-                                        .await
-                                        .is_err()
-                                    {
+                                    if tx.send(AgentEvent::Content { content }).await.is_err() {
                                         break;
                                     }
                                 }
@@ -379,7 +373,7 @@ impl DeepSeekAgent {
                 let results = if tool_inputs.len() == 1 {
                     // Single tool - execute directly for proper undo stack
                     let (name, args) = tool_inputs.into_iter().next().unwrap();
-                    
+
                     // Special handling for 'cd' to keep state
                     if name == "execute_shell_command"
                         && let Some(cmd) = args.get("command").and_then(|v| v.as_str())
@@ -387,14 +381,16 @@ impl DeepSeekAgent {
                     {
                         let new_dir = stripped.trim().trim_matches('"').trim_matches('\'');
                         let target_path = self.cwd.join(new_dir);
-                        if target_path.exists() && target_path.is_dir()
+                        if target_path.exists()
+                            && target_path.is_dir()
                             && let Ok(abs_path) = std::fs::canonicalize(target_path)
                         {
                             self.cwd = abs_path;
                         }
                     }
 
-                    let result = execute_tool(&name, &args, &mut self.undo_stack, Some(&self.cwd)).await;
+                    let result =
+                        execute_tool(&name, &args, &mut self.undo_stack, Some(&self.cwd)).await;
                     vec![(0, result, Vec::new())]
                 } else {
                     // Multiple tools - execute in parallel
@@ -405,7 +401,7 @@ impl DeepSeekAgent {
                 for (idx, result, undo_actions) in results {
                     // Merge undo actions
                     self.undo_stack.extend(undo_actions);
-                    
+
                     let (_orig_idx, tc) = &approved_calls[idx];
                     let result_str = match result {
                         Ok(res) => res,

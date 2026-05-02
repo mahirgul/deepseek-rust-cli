@@ -85,7 +85,8 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
             let mut sessions = Vec::new();
             if let Ok(entries) = fs::read_dir(".deep/history") {
                 for entry in entries.flatten() {
-                    if let Some(name) = entry.file_name().to_str().filter(|n| n.ends_with(".json")) {
+                    if let Some(name) = entry.file_name().to_str().filter(|n| n.ends_with(".json"))
+                    {
                         sessions.push(name.trim_end_matches(".json").to_string());
                     }
                 }

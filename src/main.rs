@@ -93,11 +93,9 @@ async fn main() -> Result<()> {
                     // Spinner and Status state
                     let (spinner_tx, mut spinner_rx) = mpsc::channel::<()>(1);
                     tokio::spawn(async move {
-                        let spinner_chars =
-                            vec!['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-                        let status_words = [
-                            "Thinking", "Reasoning", "Processing", "Analyzing", "Wait",
-                        ];
+                        let spinner_chars = vec!['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+                        let status_words =
+                            ["Thinking", "Reasoning", "Processing", "Analyzing", "Wait"];
                         let mut i = 0;
                         let mut word_idx = 0;
                         let start_time = tokio::time::Instant::now();
@@ -156,11 +154,7 @@ async fn main() -> Result<()> {
                                     println!("{}", content_buffer);
                                     content_buffer.clear();
                                 }
-                                println!(
-                                    "\n🔧 {} {}",
-                                    "Executing tool:".yellow(),
-                                    name.bold()
-                                );
+                                println!("\n🔧 {} {}", "Executing tool:".yellow(), name.bold());
                                 if args.len() < 200 {
                                     println!("  {} {}", "Args:".dimmed(), args.dimmed());
                                 }
@@ -182,11 +176,7 @@ async fn main() -> Result<()> {
                                     "Approval Required for tool:".yellow().bold(),
                                     name.bold().red()
                                 );
-                                println!(
-                                    "   {} {}",
-                                    "Arguments:".dimmed(),
-                                    args.dimmed()
-                                );
+                                println!("   {} {}", "Arguments:".dimmed(), args.dimmed());
                                 print!("   {} [y/n/a]: ", "Approve?".yellow().bold());
                                 io::stdout().flush().unwrap_or(());
 
@@ -234,7 +224,9 @@ async fn main() -> Result<()> {
                                     || full_message.contains('#')
                                 {
                                     println!("\n--- {} ---", "Formatted View".dimmed());
-                                    deepseek_rust_cli::tui::highlight::print_highlighted_markdown(&full_message);
+                                    deepseek_rust_cli::tui::highlight::print_highlighted_markdown(
+                                        &full_message,
+                                    );
                                     println!("---");
                                 }
 
@@ -254,9 +246,9 @@ async fn main() -> Result<()> {
                 // Cancellation listener task
                 let cancel_token_task = cancel_token.clone();
                 let cancel_handle = tokio::spawn(async move {
-                    use crossterm::event::{poll, read, Event, KeyCode, KeyModifiers};
+                    use crossterm::event::{Event, KeyCode, KeyModifiers, poll, read};
                     use std::time::Duration;
-                    
+
                     loop {
                         if cancel_token_task.is_cancelled() {
                             break;
@@ -264,7 +256,9 @@ async fn main() -> Result<()> {
                         // Use a slightly longer poll to be more CPU efficient
                         if let Ok(true) = poll(Duration::from_millis(50))
                             && let Ok(Event::Key(key)) = read()
-                            && (key.code == KeyCode::Esc || (key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL)))
+                            && (key.code == KeyCode::Esc
+                                || (key.code == KeyCode::Char('c')
+                                    && key.modifiers.contains(KeyModifiers::CONTROL)))
                         {
                             cancel_token_task.cancel();
                             break;
@@ -274,7 +268,7 @@ async fn main() -> Result<()> {
 
                 let (chat_res, _) = tokio::join!(chat_future, event_loop);
                 cancel_handle.abort(); // Ensure the listener stops immediately
-                
+
                 if let Err(e) = chat_res
                     && !e.to_string().contains("cancelled")
                 {

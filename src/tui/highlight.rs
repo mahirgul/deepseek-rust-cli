@@ -1,16 +1,17 @@
 use syntect::easy::HighlightLines;
+use syntect::highlighting::{Style, ThemeSet};
 use syntect::parsing::SyntaxSet;
-use syntect::highlighting::{ThemeSet, Style};
-use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
+use syntect::util::{LinesWithEndings, as_24_bit_terminal_escaped};
 
 pub fn highlight_code(code: &str, lang: &str) -> String {
     let ps = SyntaxSet::load_defaults_nonewlines();
     let ts = ThemeSet::load_defaults();
 
-    let syntax = ps.find_syntax_by_token(lang)
+    let syntax = ps
+        .find_syntax_by_token(lang)
         .or_else(|| ps.find_syntax_by_extension(lang))
         .unwrap_or_else(|| ps.find_syntax_plain_text());
-    
+
     let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
     let mut output = String::new();
 
@@ -38,7 +39,9 @@ pub fn print_highlighted_markdown(text: &str) {
             } else {
                 // Start of code block
                 lang = line.trim_start_matches('`').trim().to_string();
-                if lang.is_empty() { lang = "text".to_string(); }
+                if lang.is_empty() {
+                    lang = "text".to_string();
+                }
                 in_code_block = true;
             }
         } else if in_code_block {

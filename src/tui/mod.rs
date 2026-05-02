@@ -1,2 +1,2 @@
-pub mod input;
 pub mod highlight;
+pub mod input;

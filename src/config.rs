@@ -119,7 +119,10 @@ pub fn load_config() -> Config {
     // 2. Fallback: Try global ~/.deep/config.json
     if let Some(mut home) = dirs::home_dir() {
         home.push(".deep/config.json");
-        if let Some(loaded) = fs::read_to_string(home).ok().and_then(|c| serde_json::from_str::<Config>(&c).ok()) {
+        if let Some(loaded) = fs::read_to_string(home)
+            .ok()
+            .and_then(|c| serde_json::from_str::<Config>(&c).ok())
+        {
             return loaded;
         }
     }

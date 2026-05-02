@@ -57,7 +57,8 @@ impl InputHandler {
         terminal::disable_raw_mode()?;
 
         if let Ok(InputResult::Text(ref text)) = result {
-            let is_new = !text.trim().is_empty() && (self.history.is_empty() || self.history.last().unwrap() != text);
+            let is_new = !text.trim().is_empty()
+                && (self.history.is_empty() || self.history.last().unwrap() != text);
             if is_new {
                 self.history.push(text.clone());
                 self.save_history();
@@ -141,20 +142,19 @@ impl InputHandler {
                         self.redraw(&buffer, cursor_pos)?;
                     }
                     KeyCode::Tab => {
-                        let current_word = buffer
-                            .split_whitespace()
-                            .last()
-                            .unwrap_or("")
-                            .to_string();
-                        
+                        let current_word =
+                            buffer.split_whitespace().last().unwrap_or("").to_string();
+
                         if !current_word.is_empty() {
                             let mut dir = ".";
                             let mut pattern = current_word.as_str();
-                            
+
                             if let Some(pos) = current_word.rfind('/') {
                                 dir = &current_word[..pos];
-                                if dir.is_empty() { dir = "/"; }
-                                pattern = &current_word[pos+1..];
+                                if dir.is_empty() {
+                                    dir = "/";
+                                }
+                                pattern = &current_word[pos + 1..];
                             }
 
                             if let Ok(entries) = std::fs::read_dir(dir) {
@@ -163,7 +163,7 @@ impl InputHandler {
                                     .map(|e| e.file_name().to_string_lossy().to_string())
                                     .filter(|name| name.starts_with(pattern))
                                     .collect();
-                                
+
                                 if matches.len() == 1 {
                                     let remaining = &matches[0][pattern.len()..];
                                     buffer.push_str(remaining);
