@@ -93,58 +93,56 @@ async fn main() -> Result<()> {
                 let event_loop = async move {
                     let mut full_message = String::new();
                     let mut content_buffer = String::new();
-                    let mut has_reasoning = false;
-                    let mut first_reasoning = true;
+                    let mut is_reasoning = false;
                     let mut spinner_active = true;
                     let skin = termimad::MadSkin::default();
 
-                    // Spinner state
+                    // Spinner and Status state
                     let (spinner_tx, mut spinner_rx) = mpsc::channel::<()>(1);
                     tokio::spawn(async move {
                         let spinner_chars = vec!['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+                        let status_words = vec!["Thinking", "Reasoning", "Processing", "Analyzing", "Wait"];
                         let mut i = 0;
+                        let mut word_idx = 0;
                         let start_time = tokio::time::Instant::now();
+                        
                         loop {
                             tokio::select! {
                                 _ = spinner_rx.recv() => break,
                                 _ = tokio::time::sleep(Duration::from_millis(80)) => {
                                     let elapsed = start_time.elapsed().as_secs_f32();
-                                    print!("\r{} {} {:.1}s", spinner_chars[i].to_string().cyan(), "Waiting for response...".dimmed(), elapsed);
+                                    if i % 10 == 0 { // Change word every ~0.8s
+                                        word_idx = (word_idx + 1) % status_words.len();
+                                    }
+                                    print!("\r{} {}... {:.1}s", 
+                                        spinner_chars[i % spinner_chars.len()].to_string().cyan(), 
+                                        status_words[word_idx].dimmed(), 
+                                        elapsed
+                                    );
                                     io::stdout().flush().unwrap_or(());
-                                    i = (i + 1) % spinner_chars.len();
+                                    i += 1;
                                 }
                             }
                         }
-                        // Clear spinner line
+                        // Clear the status line
                         print!("\r\x1b[K");
                         io::stdout().flush().unwrap_or(());
                     });
 
                     while let Some(event) = rx.recv().await {
-                        // Stop spinner on first event (except ApprovalRequest which clears it manually)
-                        if spinner_active && !matches!(event, AgentEvent::ApprovalRequest { .. }) {
-                            let _ = spinner_tx.send(()).await;
-                            spinner_active = false;
-                        }
-
                         match event {
-                            AgentEvent::Reasoning { content } => {
-                                if first_reasoning {
-                                    print!(
-                                        "\r{} {}\n",
-                                        "🧠".bright_magenta(),
-                                        "Thinking...".italic().dimmed()
-                                    );
-                                    first_reasoning = false;
-                                }
-                                has_reasoning = true;
-                                print!("{}", content.dimmed());
-                                io::stdout().flush().unwrap_or(());
+                            AgentEvent::Reasoning { .. } => {
+                                is_reasoning = true;
+                                // We don't print anything here, just keep the status indicator running
                             }
                             AgentEvent::Content { content } => {
-                                if has_reasoning {
-                                    println!();
-                                    has_reasoning = false;
+                                if spinner_active {
+                                    let _ = spinner_tx.send(()).await;
+                                    spinner_active = false;
+                                }
+                                if is_reasoning {
+                                    println!(); // Add newline after reasoning completes
+                                    is_reasoning = false;
                                 }
                                 content_buffer.push_str(&content);
                                 full_message.push_str(&content);
