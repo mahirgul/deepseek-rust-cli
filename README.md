@@ -12,13 +12,14 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 
 - **🧠 Advanced Reasoning:** Real-time display of the model's thinking process (DeepSeek Reasoning).
 - **🛠️ Robust Toolset:** 34 built-in tools — BASH commands, file I/O, search, Git, GitHub API, and web fetching.
+- **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands now update the agent's environment state.
+- **🎨 Visual Feedback:** Interactive progress bars, **Syntax Highlighting** for code blocks (syntect), and spinner animations.
+- **⌨️ TUI Enhancements:** **Tab completion** for file paths and commands in the interactive prompt.
+- **🛑 Stream Control:** Abort ongoing streaming responses instantly with **Esc** or **Ctrl+C**.
+- **✏️ Surgical Editing:** **Fuzzy Text Replacement** that handles minor formatting and whitespace differences for safer file editing.
 - **🐙 GitHub Integration:** Create issues/PRs, search code/repos, manage workflows via GitHub API.
-- **🔄 Undo Support:** Easily revert file changes made by the AI.
-- **📁 Dynamic Context:** Automatic injection of project structure, git status, and local memory.
-- **🎨 Visual Feedback:** Interactive progress bars, syntax-highlighted output, and spinner animations.
-- **🤖 Autonomous Mode:** Optional auto-approval for seamless tool execution.
-- **💬 Multi-session:** Resume, export, and manage multiple chat sessions.
-- **🔐 Safety-first:** Dangerous commands and destructive operations require user approval.
+- **🔄 Parallel Execution:** Multi-tool execution in parallel with intelligent undo stack merging.
+- **🔐 Safety-first:** Dangerous commands and destructive operations require user approval; all tools have built-in **timeouts**.
 
 ## 🚀 Quick Install
 
