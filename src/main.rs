@@ -140,9 +140,12 @@ Be concise. When suggested a bash command, ensure it's safe. Use PATCH for surgi
 
     let mut auto_approve = false;
     let mut autonomous_turn = false;
+    let mut iteration_count = 0;
+    let max_iterations = 5;
 
     loop {
         if !autonomous_turn {
+            iteration_count = 0; // Reset count on user turn
             let readline = if let Some(prompt_text) = &args.prompt {
                 if messages.iter().any(|m| m.role == "user") {
                     Ok(String::new())
@@ -220,27 +223,28 @@ Be concise. When suggested a bash command, ensure it's safe. Use PATCH for surgi
 
         // Context Management
         let total_tokens = utils::get_total_tokens(&messages);
-        if total_tokens > 4000 && messages.len() > 5 {
+        if total_tokens > 10000 && messages.len() > 10 {
             let keep_count = 5; // Keep last 5 messages + system prompt
             let split_index = messages.len() - keep_count;
             let system_msg = messages[0].clone();
-            let to_summarize = &messages[1..split_index];
-            println!(
-                "🔄 Context usage ({} tokens) high. Summarizing older history...",
-                total_tokens
-            );
-            if let Some(summary) =
-                summarize_context(&client, &api_key, &base_url, &model, to_summarize).await
-            {
-                messages = messages.split_off(split_index);
-                messages.insert(
-                    0,
-                    Message {
-                        role: "system".to_string(),
-                        content: format!("Summary of previous context:\n{}", summary),
-                    },
-                );
-                messages.insert(0, system_msg);
+            let to_summarize = messages[1..split_index].to_vec();
+            
+            let history_tokens: usize = to_summarize.iter().map(|m| utils::count_tokens(&m.content)).sum();
+            
+            // Only summarize if history is significant enough to matter
+            if history_tokens > 1500 {
+                println!("🔄 Context usage ({} tokens) high. Summarizing {} tokens of history...", total_tokens, history_tokens);
+                if let Some(summary) = summarize_context(&client, &api_key, &base_url, &model, &to_summarize).await {
+                    let mut new_messages = Vec::new();
+                    new_messages.push(system_msg);
+                    new_messages.push(Message { 
+                        role: "system".to_string(), 
+                        content: format!("Summary of previous context to save tokens:\n{}", summary) 
+                    });
+                    new_messages.extend(messages.drain(split_index..));
+                    messages = new_messages;
+                    println!("✅ Context compressed successfully.");
+                }
             }
         }
 
@@ -450,10 +454,21 @@ Be concise. When suggested a bash command, ensure it's safe. Use PATCH for surgi
         }
 
         if autonomous_turn {
-            println!(
-                "\n{}",
-                "🔄 [Autonomous Turn - Continuing...]".blue().italic()
-            );
+            iteration_count += 1;
+            if iteration_count >= max_iterations {
+                println!("\n{}", "⚠️ [Max iterations reached - Stopping for safety]".red().bold());
+                autonomous_turn = false;
+            } else {
+                println!(
+                    "\n{}",
+                    format!(
+                        "🔄 [Autonomous Turn {}/{} - Continuing...]",
+                        iteration_count, max_iterations
+                    )
+                    .blue()
+                    .italic()
+                );
+            }
         }
         save_history(&messages);
         if args.prompt.is_some() && !autonomous_turn {
