@@ -90,6 +90,15 @@ pub struct DeltaFunctionCall {
     pub arguments: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ChatOptions {
+    pub temperature: f32,
+    pub top_p: f32,
+    pub presence_penalty: f32,
+    pub frequency_penalty: f32,
+    pub max_tokens: Option<u32>,
+}
+
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct TokenUsage {
     pub prompt_tokens: u64,

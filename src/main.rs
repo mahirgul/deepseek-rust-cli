@@ -47,8 +47,8 @@ async fn main() -> Result<()> {
 
     print_welcome_banner(&agent);
 
-    loop {
-        match input_handler.read_line()? {
+    while let Ok(res) = input_handler.read_line() {
+        match res {
             InputResult::Text(text) => {
                 if text.trim().is_empty() {
                     continue;
@@ -239,7 +239,6 @@ async fn main() -> Result<()> {
                             }
                         }
                     }
-                    let _ = spinner_tx.send(()).await;
                     Ok::<(), anyhow::Error>(())
                 };
 
@@ -248,7 +247,7 @@ async fn main() -> Result<()> {
                     println!("\n❌ Agent error: {}", e);
                 }
             }
-            InputResult::Exit | InputResult::EOF => break,
+            InputResult::Exit | InputResult::Eof => break,
         }
     }
 

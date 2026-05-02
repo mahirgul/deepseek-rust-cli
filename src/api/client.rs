@@ -26,11 +26,7 @@ impl DeepSeekClient {
         model: &str,
         messages: Vec<Message>,
         tools: Option<Vec<Tool>>,
-        temperature: f32,
-        top_p: f32,
-        presence_penalty: f32,
-        frequency_penalty: f32,
-        max_tokens: Option<u32>,
+        options: crate::api::types::ChatOptions,
     ) -> Result<Response> {
         let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
         let request = ChatRequest {
@@ -39,11 +35,11 @@ impl DeepSeekClient {
             stream: true,
             tools,
             tool_choice: Some("auto".to_string()),
-            temperature,
-            top_p,
-            presence_penalty,
-            frequency_penalty,
-            max_tokens,
+            temperature: options.temperature,
+            top_p: options.top_p,
+            presence_penalty: options.presence_penalty,
+            frequency_penalty: options.frequency_penalty,
+            max_tokens: options.max_tokens,
         };
 
         let mut last_err = None;

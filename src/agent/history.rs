@@ -4,10 +4,8 @@ use std::path::PathBuf;
 
 pub fn load_history(session_id: &str) -> Vec<Message> {
     let path = get_history_path(session_id);
-    if let Ok(content) = fs::read_to_string(path) {
-        if let Ok(msgs) = serde_json::from_str::<Vec<Message>>(&content) {
-            return msgs;
-        }
+    if let Some(msgs) = fs::read_to_string(path).ok().and_then(|c| serde_json::from_str::<Vec<Message>>(&c).ok()) {
+        return msgs;
     }
     Vec::new()
 }

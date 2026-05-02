@@ -5,10 +5,8 @@ pub fn get_project_context() -> String {
     if let Ok(entries) = fs::read_dir(".") {
         context.push_str("\n### Project Structure:\n");
         for entry in entries.flatten() {
-            if let Ok(name) = entry.file_name().into_string() {
-                if !name.starts_with('.') && name != "target" {
-                    context.push_str(&format!("- {}\n", name));
-                }
+            if let Some(name) = entry.file_name().into_string().ok().filter(|n| !n.starts_with('.') && n != "target") {
+                context.push_str(&format!("- {}\n", name));
             }
         }
     }

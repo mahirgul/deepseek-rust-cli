@@ -118,19 +118,20 @@ impl DeepSeekAgent {
         let mut iteration = 0;
         while iteration < self.config.max_iterations {
             iteration += 1;
-            let response_res = self
-                .client
-                .chat_completions(
-                    &self.model,
-                    self.messages.clone(),
-                    Some(get_all_tools()),
-                    self.config.temperature,
-                    self.config.top_p,
-                    self.config.presence_penalty,
-                    self.config.frequency_penalty,
-                    Some(self.config.max_tokens),
-                )
-                .await;
+            let options = crate::api::types::ChatOptions {
+                temperature: self.config.temperature,
+                top_p: self.config.top_p,
+                presence_penalty: self.config.presence_penalty,
+                frequency_penalty: self.config.frequency_penalty,
+                max_tokens: Some(self.config.max_tokens),
+            };
+
+            let response_res = self.client.chat_completions(
+                &self.model,
+                self.messages.clone(),
+                Some(get_all_tools()),
+                options,
+            ).await;
 
             let response = match response_res {
                 Ok(res) => res,
@@ -183,18 +184,13 @@ impl DeepSeekAgent {
                             }
 
                             for choice in chunk.choices {
-                                if let Some(reasoning) = choice.delta.reasoning_content {
-                                    if !reasoning.is_empty() {
-                                        full_reasoning.push_str(&reasoning);
-                                        tx.send(AgentEvent::Reasoning { content: reasoning })
-                                            .await?;
-                                    }
+                                if let Some(reasoning) = choice.delta.reasoning_content.filter(|r| !r.is_empty()) {
+                                    full_reasoning.push_str(&reasoning);
+                                    tx.send(AgentEvent::Reasoning { content: reasoning }).await?;
                                 }
-                                if let Some(content) = choice.delta.content {
-                                    if !content.is_empty() {
-                                        full_content.push_str(&content);
-                                        tx.send(AgentEvent::Content { content }).await?;
-                                    }
+                                if let Some(content) = choice.delta.content.filter(|c| !c.is_empty()) {
+                                    full_content.push_str(&content);
+                                    tx.send(AgentEvent::Content { content }).await?;
                                 }
                                 if let Some(deltas) = choice.delta.tool_calls {
                                     for delta in deltas {
@@ -413,7 +409,7 @@ impl DeepSeekAgent {
                         "❌ Undo failed: No backup path available.".to_string()
                     }
                 }
-                _ => format!("❌ Undo failed: Unknown action type"),
+                _ => "❌ Undo failed: Unknown action type".to_string(),
             }
         } else {
             "ℹ️ Undo stack is empty.".to_string()

@@ -4,9 +4,22 @@ use std::env;
 // ─── GitHub API Client ──────────────────────────────────────────────
 
 fn get_github_token() -> Result<String> {
+    // Load from ~/.deep/.env
+    if let Some(mut home) = dirs::home_dir() {
+        home.push(".deep/.env");
+        if home.exists() {
+            let _ = dotenvy::from_path(&home);
+        }
+    }
+
     env::var("GITHUB_TOKEN")
         .or_else(|_| env::var("GH_TOKEN"))
-        .map_err(|_| anyhow::anyhow!("GITHUB_TOKEN not set. Please export GITHUB_TOKEN=your_token"))
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "GITHUB_TOKEN not found in ~/.deep/.env.\n\
+                 Please add: GITHUB_TOKEN=your_token"
+            )
+        })
 }
 
 fn create_client() -> Result<reqwest::Client> {
@@ -495,7 +508,7 @@ fn base64_decode(input: &str) -> Option<String> {
     }
 
     let len = cleaned.len();
-    if len % 4 != 0 {
+    if !len.is_multiple_of(4) {
         return None;
     }
 
