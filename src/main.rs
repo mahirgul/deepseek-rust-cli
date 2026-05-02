@@ -53,11 +53,15 @@ async fn main() -> anyhow::Result<()> {
     let base_url = config
         .base_url
         .unwrap_or_else(|| "https://api.deepseek.com".to_string());
-    let api_key = env::var("DEEPSEEK_API_KEY")
-        .expect("DEEPSEEK_API_KEY must be set in the environment or .env file");
+    let api_key = env::var("DEEPSEEK_API_KEY").map_err(|_| {
+        anyhow::anyhow!("DEEPSEEK_API_KEY must be set in the environment or .env file")
+    })?;
 
     let client = Client::new();
     let mut rl = DefaultEditor::new()?;
+    
+    // ... (rest of setup)
+
 
     let default_prompt = "You are a helpful AI assistant acting as a CLI agent.
 You can execute tools using the following formats:
@@ -77,59 +81,18 @@ FILE: <path>
 
 Be concise. When suggested a bash command, ensure it's safe. Use PATCH for surgical file edits."
         .to_string();
-    let mut system_prompt = config.system_prompt.unwrap_or(default_prompt);
-
-    // Context Scanning
-    let mut dir_content = String::new();
-    if let Ok(cwd) = std::env::current_dir() {
-        dir_content.push_str(&format!(
-            "\n\n### CURRENT WORKING DIRECTORY:\n{}\n",
-            cwd.display()
-        ));
-    }
-
-    if let Ok(entries) = std::fs::read_dir(".") {
-        dir_content.push_str("\n\n### PROJECT STRUCTURE:\n");
-        for entry in entries.flatten() {
-            if let Ok(name) = entry.file_name().into_string() {
-                if !name.starts_with('.') && name != "target" {
-                    dir_content.push_str(&format!("- {}\n", name));
-                }
-            }
-        }
-    }
-
-    let git_status = Command::new("git").arg("status").arg("-s").output();
-    if let Ok(output) = git_status {
-        let status_str = String::from_utf8_lossy(&output.stdout);
-        if !status_str.trim().is_empty() {
-            dir_content.push_str("\n\n### GIT STATUS:\n");
-            dir_content.push_str(&status_str);
-        }
-    }
-
-    for file in &critical_files {
-        if let Ok(content) = std::fs::read_to_string(file) {
-            dir_content.push_str(&format!("\n\n### CONTENTS OF {}:\n{}\n", file, content));
-        }
-    }
-
-    system_prompt.push_str(&dir_content);
 
     let mut messages: Vec<Message> = load_history();
     if messages.is_empty() {
         messages.push(Message {
             role: "system".to_string(),
-            content: system_prompt.clone(),
+            content: config.system_prompt.clone().unwrap_or(default_prompt.clone()),
         });
-    } else if let Some(first) = messages.first_mut() {
-        if first.role == "system" {
-            first.content = system_prompt.clone();
-        }
     }
 
     print!("\x1B[2J\x1B[1;1H");
     io::stdout().flush().unwrap_or(());
+
 
     println!("{}", "🚀 DeepSeek CLI Agent Pro Started!".green().bold());
     println!("Model: {} | API: {}", model.cyan(), base_url.cyan());
@@ -138,12 +101,57 @@ Be concise. When suggested a bash command, ensure it's safe. Use PATCH for surgi
         "Type '/help' for commands. Use up/down arrows for history.".dimmed()
     );
 
-    let mut auto_approve = false;
+    let mut auto_approve = args.auto_approve;
     let mut autonomous_turn = false;
     let mut iteration_count = 0;
     let max_iterations = 5;
 
     loop {
+        // Refresh context every turn
+        let mut current_dir_context = String::new();
+        if let Ok(cwd) = std::env::current_dir() {
+            current_dir_context.push_str(&format!(
+                "\n\n### CURRENT WORKING DIRECTORY:\n{}\n",
+                cwd.display()
+            ));
+        }
+
+        if let Ok(entries) = std::fs::read_dir(".") {
+            current_dir_context.push_str("\n\n### PROJECT STRUCTURE:\n");
+            for entry in entries.flatten() {
+                if let Ok(name) = entry.file_name().into_string() {
+                    if !name.starts_with('.') && name != "target" {
+                        current_dir_context.push_str(&format!("- {}\n", name));
+                    }
+                }
+            }
+        }
+
+        let git_status = Command::new("git").arg("status").arg("-s").output();
+        if let Ok(output) = git_status {
+            let status_str = String::from_utf8_lossy(&output.stdout);
+            if !status_str.trim().is_empty() {
+                current_dir_context.push_str("\n\n### GIT STATUS:\n");
+                current_dir_context.push_str(&status_str);
+            }
+        }
+
+        for file in &critical_files {
+            if let Ok(content) = std::fs::read_to_string(file) {
+                current_dir_context.push_str(&format!(
+                    "\n\n### CONTENTS OF {}:\n{}\n",
+                    file, content
+                ));
+            }
+        }
+
+        let dynamic_system_prompt = format!("{}{}", config.system_prompt.as_ref().unwrap_or(&default_prompt), current_dir_context);
+        if let Some(first) = messages.first_mut() {
+            if first.role == "system" {
+                first.content = dynamic_system_prompt;
+            }
+        }
+
         if !autonomous_turn {
             iteration_count = 0; // Reset count on user turn
             let readline = if let Some(prompt_text) = &args.prompt {
@@ -309,9 +317,15 @@ Be concise. When suggested a bash command, ensure it's safe. Use PATCH for surgi
         }
         println!("\n{}", "---".dimmed());
 
+        let assistant_msg = if !reasoning.is_empty() {
+            format!("<thought>\n{}\n</thought>\n\n{}", reasoning, full_response)
+        } else {
+            full_response.clone()
+        };
+
         messages.push(Message {
             role: "assistant".to_string(),
-            content: full_response.clone(),
+            content: assistant_msg,
         });
 
         match utils::extract_action(&full_response) {

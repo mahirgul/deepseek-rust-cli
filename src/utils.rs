@@ -37,64 +37,59 @@ pub fn is_safe_command(cmd: &str) -> (bool, Option<String>) {
 }
 
 pub fn extract_action(response: &str) -> Action {
-    if let Some(start) = response.find("```bash\n") {
-        let content = &response[start + 8..];
-        if let Some(end) = content.find("\n```") {
-            return Action::Bash(content[..end].trim().to_string());
-        }
-    } else if let Some(start) = response.find("<bash>") {
-        let content = &response[start + 6..];
-        if let Some(end) = content.find("</bash>") {
-            return Action::Bash(content[..end].trim().to_string());
+    // 1. BASH regex
+    let bash_re = regex::Regex::new(r"(?s)```bash\s*(.*?)\s*```|<bash>(.*?)</bash>").unwrap();
+    if let Some(caps) = bash_re.captures(response) {
+        let cmd = caps.get(1).or(caps.get(2)).map(|m| m.as_str()).unwrap_or("");
+        if !cmd.trim().is_empty() {
+            return Action::Bash(cmd.trim().to_string());
         }
     }
 
-    if let Some(start) = response.find("```patch\n") {
-        let content = &response[start + 9..];
-        if let Some(end) = content.find("\n```") {
-            let block = &content[..end];
-            let mut file = String::new();
-            if let Some(file_line) = block.lines().find(|l| l.starts_with("FILE:")) {
-                file = file_line[5..].trim().to_string();
-            }
+    // 2. PATCH regex
+    let patch_re = regex::Regex::new(r"(?s)```patch\s*(.*?)\s*```|<patch>(.*?)</patch>").unwrap();
+    if let Some(caps) = patch_re.captures(response) {
+        let block = caps.get(1).or(caps.get(2)).map(|m| m.as_str()).unwrap_or("");
+        let mut file = String::new();
+        if let Some(file_line) = block.lines().find(|l| l.starts_with("FILE:")) {
+            file = file_line[5..].trim().to_string();
+        }
 
-            if let (Some(s_idx), Some(m_idx), Some(e_idx)) = (
-                block.find("<<<<\n"),
-                block.find("====\n"),
-                block.find(">>>>"),
-            ) {
-                let old = &block[s_idx + 5..m_idx].trim_end_matches('\n');
-                let new = &block[m_idx + 5..e_idx].trim_end_matches('\n');
-                if !file.is_empty() {
-                    return Action::Patch(file, old.to_string(), new.to_string());
-                }
+        if let (Some(s_idx), Some(m_idx), Some(e_idx)) = (
+            block.find("<<<<\n"),
+            block.find("====\n"),
+            block.find(">>>>"),
+        ) {
+            let old = &block[s_idx + 5..m_idx].trim_end_matches('\n');
+            let new = &block[m_idx + 5..e_idx].trim_end_matches('\n');
+            if !file.is_empty() {
+                return Action::Patch(file, old.to_string(), new.to_string());
             }
         }
     }
 
-    if let Some(start) = response.find("```fetch\n") {
-        let content = &response[start + 9..];
-        if let Some(end) = content.find("\n```") {
-            return Action::Fetch(content[..end].trim().to_string());
+    // 3. FETCH regex
+    let fetch_re = regex::Regex::new(r"(?s)```fetch\s*(.*?)\s*```|<fetch>(.*?)</fetch>").unwrap();
+    if let Some(caps) = fetch_re.captures(response) {
+        let url = caps.get(1).or(caps.get(2)).map(|m| m.as_str()).unwrap_or("");
+        if !url.trim().is_empty() {
+            return Action::Fetch(url.trim().to_string());
         }
     }
 
-    let mut read_content = None;
-    if let Some(start) = response.find("```read\n") {
-        let content = &response[start + 8..];
-        if let Some(end) = content.find("\n```") {
-            read_content = Some(content[..end].trim());
-        }
-    }
-
-    if let Some(line) = read_content {
+    // 4. READ regex
+    let read_re = regex::Regex::new(r"(?s)```read\s*(.*?)\s*```|<read>(.*?)</read>").unwrap();
+    if let Some(caps) = read_re.captures(response) {
+        let line = caps.get(1).or(caps.get(2)).map(|m| m.as_str()).unwrap_or("");
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() >= 3 {
             if let (Ok(s), Ok(e)) = (parts[1].parse::<usize>(), parts[2].parse::<usize>()) {
                 return Action::Read(parts[0].to_string(), s, e);
             }
         }
-        return Action::Read(parts.get(0).unwrap_or(&"").to_string(), 0, 0);
+        if !parts.is_empty() {
+            return Action::Read(parts[0].to_string(), 0, 0);
+        }
     }
 
     Action::None
@@ -178,8 +173,12 @@ fn highlight_code(code: &str, lang: &str, ps: &SyntaxSet, ts: &ThemeSet) {
 }
 
 pub fn count_tokens(text: &str) -> usize {
-    let bpe = cl100k_base().unwrap();
-    bpe.encode_with_special_tokens(text).len()
+    if let Ok(bpe) = cl100k_base() {
+        bpe.encode_with_special_tokens(text).len()
+    } else {
+        // Fallback to a very rough estimation if tokenizer fails
+        text.split_whitespace().count() * 4 / 3
+    }
 }
 
 pub fn get_total_tokens(messages: &[Message]) -> usize {

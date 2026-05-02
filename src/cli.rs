@@ -14,4 +14,8 @@ pub struct Args {
     /// Prompt for running a one-shot command (Sub-agent)
     #[arg(short, long)]
     pub prompt: Option<String>,
+
+    /// Automatically approve all commands
+    #[arg(short, long, default_value_t = false)]
+    pub auto_approve: bool,
 }
