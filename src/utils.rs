@@ -123,6 +123,7 @@ pub fn save_history(messages: &[Message]) {
     }
 }
 
+#[allow(dead_code)]
 pub fn render_markdown(text: &str) {
     let ps = SyntaxSet::load_defaults_newlines();
     let ts = ThemeSet::load_defaults();
@@ -157,6 +158,7 @@ pub fn render_markdown(text: &str) {
     }
 }
 
+#[allow(dead_code)]
 fn highlight_code(code: &str, lang: &str, ps: &SyntaxSet, ts: &ThemeSet) {
     let syntax = ps.find_syntax_by_token(lang).unwrap_or_else(|| ps.find_syntax_plain_text());
     let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
