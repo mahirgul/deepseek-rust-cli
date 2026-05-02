@@ -1,7 +1,12 @@
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = "A CLI tool that connects to the DeepSeek API as an AI agent.")]
+#[command(
+    author,
+    version,
+    about,
+    long_about = "A CLI tool that connects to the DeepSeek API as an AI agent."
+)]
 pub struct Args {
     #[arg(short, long)]
     pub model: Option<String>,

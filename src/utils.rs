@@ -1,11 +1,11 @@
 use crate::models::{AppConfig, Message};
 use std::fs;
 use std::path::Path;
-use termimad::MadSkin;
 use syntect::easy::HighlightLines;
+use syntect::highlighting::{Style, ThemeSet};
 use syntect::parsing::SyntaxSet;
-use syntect::highlighting::{ThemeSet, Style};
-use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
+use syntect::util::{LinesWithEndings, as_24_bit_terminal_escaped};
+use termimad::MadSkin;
 use tiktoken_rs::cl100k_base;
 
 pub enum Action {
@@ -58,7 +58,11 @@ pub fn extract_action(response: &str) -> Action {
                 file = file_line[5..].trim().to_string();
             }
 
-            if let (Some(s_idx), Some(m_idx), Some(e_idx)) = (block.find("<<<<\n"), block.find("====\n"), block.find(">>>>")) {
+            if let (Some(s_idx), Some(m_idx), Some(e_idx)) = (
+                block.find("<<<<\n"),
+                block.find("====\n"),
+                block.find(">>>>"),
+            ) {
                 let old = &block[s_idx + 5..m_idx].trim_end_matches('\n');
                 let new = &block[m_idx + 5..e_idx].trim_end_matches('\n');
                 if !file.is_empty() {
@@ -130,24 +134,24 @@ pub fn render_markdown(text: &str) {
     let skin = MadSkin::default();
 
     // Split text into markdown and code blocks for manual highlighting if needed,
-    // but for now let's use a simpler approach: 
+    // but for now let's use a simpler approach:
     // Termimad for general markdown, and we can try to intercept code blocks.
-    
+
     // Improved approach: Parse code blocks and highlight them specifically.
     let mut current_pos = 0;
     while let Some(start_idx) = text[current_pos..].find("```") {
         let absolute_start = current_pos + start_idx;
         // Print markdown before code block
         skin.print_text(&text[current_pos..absolute_start]);
-        
+
         let block_content = &text[absolute_start + 3..];
         if let Some(end_idx) = block_content.find("```") {
             let line_end = block_content.find('\n').unwrap_or(0);
             let lang = block_content[..line_end].trim();
             let code = &block_content[line_end..end_idx].trim_start_matches('\n');
-            
+
             highlight_code(code, lang, &ps, &ts);
-            
+
             current_pos = absolute_start + 3 + end_idx + 3;
         } else {
             break;
@@ -160,9 +164,11 @@ pub fn render_markdown(text: &str) {
 
 #[allow(dead_code)]
 fn highlight_code(code: &str, lang: &str, ps: &SyntaxSet, ts: &ThemeSet) {
-    let syntax = ps.find_syntax_by_token(lang).unwrap_or_else(|| ps.find_syntax_plain_text());
+    let syntax = ps
+        .find_syntax_by_token(lang)
+        .unwrap_or_else(|| ps.find_syntax_plain_text());
     let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
-    
+
     for line in LinesWithEndings::from(code) {
         let ranges: Vec<(Style, &str)> = h.highlight_line(line, ps).unwrap_or_default();
         let escaped = as_24_bit_terminal_escaped(&ranges[..], false);
