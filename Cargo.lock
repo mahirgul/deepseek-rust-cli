@@ -690,6 +690,7 @@ dependencies = [
  "dotenvy",
  "flate2",
  "futures",
+ "futures-util",
  "git2",
  "glob",
  "hostname",
