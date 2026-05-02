@@ -251,19 +251,20 @@ async fn main() -> Result<()> {
                     Ok::<(), anyhow::Error>(())
                 };
 
-                // Cancellation listener
+                // Cancellation listener task
                 let cancel_token_task = cancel_token.clone();
-                tokio::spawn(async move {
-                    use crossterm::event::{poll, read, Event, KeyCode};
+                let cancel_handle = tokio::spawn(async move {
+                    use crossterm::event::{poll, read, Event, KeyCode, KeyModifiers};
                     use std::time::Duration;
                     
                     loop {
                         if cancel_token_task.is_cancelled() {
                             break;
                         }
-                        if let Ok(true) = poll(Duration::from_millis(100))
+                        // Use a slightly longer poll to be more CPU efficient
+                        if let Ok(true) = poll(Duration::from_millis(50))
                             && let Ok(Event::Key(key)) = read()
-                            && (key.code == KeyCode::Esc || (key.code == KeyCode::Char('c') && key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)))
+                            && (key.code == KeyCode::Esc || (key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL)))
                         {
                             cancel_token_task.cancel();
                             break;
@@ -272,6 +273,8 @@ async fn main() -> Result<()> {
                 });
 
                 let (chat_res, _) = tokio::join!(chat_future, event_loop);
+                cancel_handle.abort(); // Ensure the listener stops immediately
+                
                 if let Err(e) = chat_res
                     && !e.to_string().contains("cancelled")
                 {
