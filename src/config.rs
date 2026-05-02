@@ -164,3 +164,23 @@ pub fn get_api_key() -> Result<String> {
          DEEPSEEK_API_KEY=your_api_key_here"
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = Config::default();
+        assert_eq!(config.model, "deepseek-v4-pro");
+        assert!(config.temperature >= 0.0);
+    }
+
+    #[test]
+    fn test_config_serialization() {
+        let config = Config::default();
+        let json = serde_json::to_string(&config).unwrap();
+        let decoded: Config = serde_json::from_str(&json).unwrap();
+        assert_eq!(config.model, decoded.model);
+    }
+}

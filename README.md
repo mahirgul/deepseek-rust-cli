@@ -11,15 +11,16 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 ## ✨ Features
 
 - **🧠 Advanced Reasoning:** Real-time display of the model's thinking process (DeepSeek Reasoning).
-- **🛠️ Robust Toolset:** 34 built-in tools — BASH commands, file I/O, search, Git, GitHub API, and web fetching.
-- **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands now update the agent's environment state.
-- **🎨 Visual Feedback:** Interactive progress bars, **Syntax Highlighting** for code blocks (syntect), and spinner animations.
+- **🛠️ Extensible Toolset:** 34+ tools managed by a trait-based registry system for reliable and fast execution.
+- **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands update the agent's environment state.
+- **🎨 Visual Feedback:** Dynamic **Spinners with Timers**, Syntax Highlighting for code blocks, and interactive progress bars.
 - **⌨️ TUI Enhancements:** **Tab completion** for file paths and commands in the interactive prompt.
 - **🛑 Stream Control:** Abort ongoing streaming responses instantly with **Esc** or **Ctrl+C**.
-- **✏️ Surgical Editing:** **Fuzzy Text Replacement** that handles minor formatting and whitespace differences for safer file editing.
-- **🐙 GitHub Integration:** Create issues/PRs, search code/repos, manage workflows via GitHub API.
-- **🔄 Parallel Execution:** Multi-tool execution in parallel with intelligent undo stack merging.
-- **🔐 Safety-first:** Dangerous commands and destructive operations require user approval; all tools have built-in **timeouts**.
+- **🔄 Auto-Update:** Background version checking with a one-command update system (`/update`).
+- **✏️ Surgical Editing:** **Fuzzy Text Replacement** that handles formatting differences for safer file modifications.
+- **🐙 GitHub Integration:** Full lifecycle management (Issues, PRs, Search, Workflows) via GitHub API.
+- **🧪 High Reliability:** Expanded unit and integration test suite ensures stability across core components.
+- **🔐 Safety-first:** Dangerous commands require user approval; all tools have built-in **execution timeouts**.
 
 ## 🚀 Quick Install
 
@@ -62,20 +63,22 @@ deepseek-rust-cli
 
 ### Slash Commands:
 - `/help` - Show help menu
-- `/model <name>` - Switch AI model
+- `/model <name>` - Show or switch current AI model
 - `/sessions` - List all chat sessions
 - `/resume <id>` - Switch to/resume a session
-- `/undo` - Undo last file action
+- `/undo` - Undo last file/shell action
 - `/tokens` - Show current token usage
 - `/savemem <msg>` - Save critical info to .deep/memory.md
 - `/export` - Export session to Markdown
+- `/update` - Check for and install the latest version
 - `/clear` - Clear terminal screen
-- `/forget` - Wipe current history
+- `/forget` - Wipe current history from disk
 - `/auto` - Toggle auto-approve mode
-- `/info` - Show session info
-- `/config <key> [value]` - View or modify config
+- `/info` - Show detailed session info
+- `/config <key> [value]` - View or modify configuration
 - `/temperature <value>` - Set model temperature
-- `/retry` - Retry last request
+- `/retry` - Regenerate last assistant response
+- `/exit`, `/quit` - Close the application
 
 ### Example Interactions:
 ```

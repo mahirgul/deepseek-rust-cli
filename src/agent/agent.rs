@@ -5,7 +5,7 @@ use crate::api::client::DeepSeekClient;
 use crate::api::streaming::StreamParser;
 use crate::api::types::{Message, TokenUsage, ToolCall};
 use crate::config::Config;
-use crate::tools::get_all_tools;
+use crate::tools::schemas::get_tools_schemas;
 use anyhow::Result;
 use colored::Colorize;
 use futures::StreamExt;
@@ -161,7 +161,7 @@ impl DeepSeekAgent {
                 .chat_completions(
                     &self.model,
                     self.messages.clone(),
-                    Some(get_all_tools()),
+                    Some(get_tools_schemas()),
                     options,
                 )
                 .await;

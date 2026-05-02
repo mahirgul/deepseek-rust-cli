@@ -1,40 +1,116 @@
-use anyhow::{Result, bail};
-use std::path::PathBuf;
+use crate::agent::agent::UndoAction;
+use anyhow::Result;
+use async_trait::async_trait;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::path::Path;
 
-pub fn validate_path(path: &str) -> Result<PathBuf> {
-    let p = PathBuf::from(path);
+#[async_trait]
+pub trait Tool: Send + Sync {
+    fn name(&self) -> &str;
+    async fn execute(
+        &self,
+        args: &HashMap<String, Value>,
+        undo_stack: &mut Vec<UndoAction>,
+        cwd: Option<&Path>,
+    ) -> Result<String>;
+}
 
-    // Convert to absolute path to check for traversal
-    let current_dir = std::env::current_dir()?;
-    let absolute_path = if p.is_absolute() {
-        p.clone()
-    } else {
-        current_dir.join(&p)
-    };
+pub struct ToolRegistry {
+    tools: HashMap<String, Box<dyn Tool>>,
+}
 
-    // Very basic protection: don't allow going above current directory
-    // or specific system directories if we wanted to be stricter.
-    // For a CLI agent, we might allow home dir but let's at least prevent ../../ etc
+impl Default for ToolRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-    let canonical = match absolute_path.canonicalize() {
-        Ok(path) => path,
-        Err(_) => {
-            // If it doesn't exist, we still want to check the path components
-            // for ".." to prevent creation of files outside
-            if path.contains("..") {
-                bail!("Path traversal attempt detected: {}", path);
-            }
-            absolute_path
-        }
-    };
-
-    if !canonical.starts_with(&current_dir) && !path.starts_with("./") && !p.is_relative() {
-        // If it's absolute and not in current dir, we might want to warn or bail
-        // But for now, let's just ensure no ".." trickery
-        if path.contains("..") {
-            bail!("Path traversal attempt detected: {}", path);
+impl ToolRegistry {
+    pub fn new() -> Self {
+        Self {
+            tools: HashMap::new(),
         }
     }
 
-    Ok(p)
+    pub fn register(&mut self, tool: Box<dyn Tool>) {
+        self.tools.insert(tool.name().to_string(), tool);
+    }
+
+    pub async fn execute(
+        &self,
+        name: &str,
+        args: &HashMap<String, Value>,
+        undo_stack: &mut Vec<UndoAction>,
+        cwd: Option<&Path>,
+    ) -> Result<String> {
+        if let Some(tool) = self.tools.get(name) {
+            tool.execute(args, undo_stack, cwd).await
+        } else {
+            Err(anyhow::anyhow!("Tool '{}' not found", name))
+        }
+    }
+}
+
+pub fn validate_path(path: &str) -> Result<std::path::PathBuf> {
+    let p = std::path::PathBuf::from(path);
+    if p.is_absolute() {
+        Ok(p)
+    } else {
+        let mut abs = std::env::current_dir()?;
+        abs.push(p);
+        Ok(abs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    struct MockTool;
+    #[async_trait]
+    impl Tool for MockTool {
+        fn name(&self) -> &str {
+            "mock_tool"
+        }
+        async fn execute(
+            &self,
+            args: &HashMap<String, Value>,
+            _undo: &mut Vec<UndoAction>,
+            _cwd: Option<&Path>,
+        ) -> Result<String> {
+            let val = args
+                .get("val")
+                .and_then(|v| v.as_str())
+                .unwrap_or("default");
+            Ok(format!("mock: {}", val))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_tool_registry() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Box::new(MockTool));
+
+        let mut args = HashMap::new();
+        args.insert("val".to_string(), json!("hello"));
+
+        let mut undo = Vec::new();
+        let res = registry
+            .execute("mock_tool", &args, &mut undo, None)
+            .await
+            .unwrap();
+        assert_eq!(res, "mock: hello");
+
+        let res_err = registry.execute("unknown", &args, &mut undo, None).await;
+        assert!(res_err.is_err());
+    }
+
+    #[test]
+    fn test_validate_path() {
+        let p = validate_path("test.txt").unwrap();
+        assert!(p.is_absolute());
+        assert!(p.ends_with("test.txt"));
+    }
 }

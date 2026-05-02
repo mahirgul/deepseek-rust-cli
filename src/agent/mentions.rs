@@ -42,3 +42,24 @@ pub fn process_mentions(text: &str) -> String {
     result.push_str(&text[last_end..]);
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_process_mentions_basic() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("mention.txt");
+        fs::write(&file_path, "file content").unwrap();
+
+        let path_str = file_path.to_str().unwrap();
+        let input = format!("check this file @{}", path_str);
+        let processed = process_mentions(&input);
+
+        assert!(processed.contains("file content"));
+        assert!(processed.contains("check this file"));
+    }
+}

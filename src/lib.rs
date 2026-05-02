@@ -5,4 +5,5 @@ pub mod config;
 pub mod logger;
 pub mod tools;
 pub mod tui;
+pub mod updater;
 pub mod version;

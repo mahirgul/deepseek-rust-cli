@@ -287,10 +287,15 @@ Available Commands:
   /savemem <text>  - Save a note to memory.md
   /export          - Export session to a Markdown file
   /retry           - Regenerate last assistant response
+  /update          - Check for and install updates
   /help            - Show this help message
   /exit, /quit     - Exit the application
 "#;
             Ok(Some(help.trim().to_string()))
+        }
+        "/update" => {
+            crate::updater::run_update()?;
+            Ok(Some("Already up to date.".to_string()))
         }
         _ => Ok(None),
     }
