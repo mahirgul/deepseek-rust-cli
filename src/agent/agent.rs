@@ -1,5 +1,5 @@
 use crate::agent::context::get_project_context;
-use crate::agent::executor::execute_tool;
+use crate::agent::executor::{execute_tool, execute_tools_parallel};
 use crate::agent::history::{load_history, save_history};
 use crate::api::client::DeepSeekClient;
 use crate::api::streaming::StreamParser;
@@ -11,6 +11,7 @@ use colored::Colorize;
 use futures::StreamExt;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -29,6 +30,7 @@ pub enum AgentEvent {
     Error { content: String },
     ApprovalRequest { name: String, args: String },
     Done,
+    Aborted,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +49,8 @@ pub struct DeepSeekAgent {
     pub token_usage: TokenUsage,
     pub undo_stack: Vec<UndoAction>,
     pub auto_approve: bool,
+    pub cancel_token: CancellationToken,
+    pub cwd: std::path::PathBuf,
 }
 
 impl DeepSeekAgent {
@@ -84,7 +88,19 @@ impl DeepSeekAgent {
             token_usage: TokenUsage::default(),
             undo_stack: Vec::new(),
             auto_approve: false,
+            cancel_token: CancellationToken::new(),
+            cwd: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         }
+    }
+
+    /// Reset the cancellation token for a new request
+    pub fn reset_cancel(&mut self) {
+        self.cancel_token = CancellationToken::new();
+    }
+
+    /// Abort the current streaming request
+    pub fn abort(&self) {
+        self.cancel_token.cancel();
     }
 
     pub async fn chat_stream(
@@ -94,8 +110,17 @@ impl DeepSeekAgent {
         approval_rx: mpsc::Receiver<ApprovalResult>,
     ) -> Result<()> {
         self.manage_context();
-        let res = self.chat_stream_inner(user_input, tx, approval_rx).await;
+        self.reset_cancel();
+        let res = self
+            .chat_stream_inner(user_input, tx.clone(), approval_rx)
+            .await;
         self.save();
+
+        // If cancelled, send aborted event
+        if self.cancel_token.is_cancelled() {
+            let _ = tx.send(AgentEvent::Aborted).await;
+        }
+
         res
     }
 
@@ -117,6 +142,11 @@ impl DeepSeekAgent {
 
         let mut iteration = 0;
         while iteration < self.config.max_iterations {
+            // Check for cancellation
+            if self.cancel_token.is_cancelled() {
+                break;
+            }
+
             iteration += 1;
             let options = crate::api::types::ChatOptions {
                 temperature: self.config.temperature,
@@ -126,12 +156,15 @@ impl DeepSeekAgent {
                 max_tokens: Some(self.config.max_tokens),
             };
 
-            let response_res = self.client.chat_completions(
-                &self.model,
-                self.messages.clone(),
-                Some(get_all_tools()),
-                options,
-            ).await;
+            let response_res = self
+                .client
+                .chat_completions(
+                    &self.model,
+                    self.messages.clone(),
+                    Some(get_all_tools()),
+                    options,
+                )
+                .await;
 
             let response = match response_res {
                 Ok(res) => res,
@@ -154,6 +187,11 @@ impl DeepSeekAgent {
             let mut stream_error = None;
 
             while let Some(item) = stream.next().await {
+                // Check cancellation during streaming
+                if self.cancel_token.is_cancelled() {
+                    break;
+                }
+
                 match item {
                     Ok(bytes) => {
                         let chunk_str = String::from_utf8_lossy(&bytes);
@@ -163,34 +201,34 @@ impl DeepSeekAgent {
                             if let Some(usage) = chunk.usage {
                                 self.token_usage.prompt_tokens += usage.prompt_tokens;
                                 self.token_usage.completion_tokens += usage.completion_tokens;
-                                if self.config.show_token_usage {
-                                    let total = usage.prompt_tokens + usage.completion_tokens;
-                                    let _ = tx
-                                        .send(AgentEvent::Content {
-                                            content: format!(
-                                                "\n{} [{} {} | {} {} | {} {}]\n",
-                                                "📊 Token Usage:".bold().blue(),
-                                                "Prompt:".cyan(),
-                                                usage.prompt_tokens.to_string().cyan(),
-                                                "Completion:".green(),
-                                                usage.completion_tokens.to_string().green(),
-                                                "Total:".yellow(),
-                                                total.to_string().yellow()
-                                            )
-                                            .to_string(),
-                                        })
-                                        .await;
-                                }
                             }
 
                             for choice in chunk.choices {
-                                if let Some(reasoning) = choice.delta.reasoning_content.filter(|r| !r.is_empty()) {
+                                if let Some(reasoning) =
+                                    choice.delta.reasoning_content.filter(|r| !r.is_empty())
+                                {
                                     full_reasoning.push_str(&reasoning);
-                                    tx.send(AgentEvent::Reasoning { content: reasoning }).await?;
+                                    if tx
+                                        .send(AgentEvent::Reasoning {
+                                            content: reasoning,
+                                        })
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
                                 }
-                                if let Some(content) = choice.delta.content.filter(|c| !c.is_empty()) {
+                                if let Some(content) =
+                                    choice.delta.content.filter(|c| !c.is_empty())
+                                {
                                     full_content.push_str(&content);
-                                    tx.send(AgentEvent::Content { content }).await?;
+                                    if tx
+                                        .send(AgentEvent::Content { content })
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
                                 }
                                 if let Some(deltas) = choice.delta.tool_calls {
                                     for delta in deltas {
@@ -228,6 +266,11 @@ impl DeepSeekAgent {
                 }
             }
 
+            // If cancelled, stop processing
+            if self.cancel_token.is_cancelled() {
+                break;
+            }
+
             if let Some(err) = stream_error {
                 tracing::error!("Response Stream Error: {}", err);
                 let _ = tx.send(AgentEvent::Error { content: err }).await;
@@ -259,7 +302,11 @@ impl DeepSeekAgent {
                 break;
             }
 
-            for tc in tool_calls {
+            // Group tool calls: check for approval on all first
+            let mut approved_calls: Vec<(usize, &ToolCall)> = Vec::new();
+            let mut denied_results: Vec<(usize, String, String)> = Vec::new();
+
+            for (i, tc) in tool_calls.iter().enumerate() {
                 let name = tc.function.name.as_str();
                 let args: serde_json::Map<String, serde_json::Value> =
                     serde_json::from_str(&tc.function.arguments).unwrap_or_default();
@@ -270,11 +317,16 @@ impl DeepSeekAgent {
                     && !self.config.debug;
 
                 let (approved, always) = if needs_approval && !self.auto_approve {
-                    tx.send(AgentEvent::ApprovalRequest {
-                        name: tc.function.name.clone(),
-                        args: tc.function.arguments.clone(),
-                    })
-                    .await?;
+                    if tx
+                        .send(AgentEvent::ApprovalRequest {
+                            name: tc.function.name.clone(),
+                            args: tc.function.arguments.clone(),
+                        })
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
 
                     match approval_rx.recv().await {
                         Some(ApprovalResult::Yes) => (true, false),
@@ -290,47 +342,138 @@ impl DeepSeekAgent {
                 }
 
                 if approved {
-                    tx.send(AgentEvent::ToolStart {
-                        name: tc.function.name.clone(),
-                        args: tc.function.arguments.clone(),
-                    })
-                    .await?;
-                    let result =
-                        match execute_tool(&tc.function.name, &args, &mut self.undo_stack).await {
-                            Ok(res) => res,
-                            Err(e) => format!("Error: {}", e),
-                        };
-
-                    tx.send(AgentEvent::ToolEnd {
-                        name: tc.function.name.clone(),
-                    })
-                    .await?;
-
-                    self.messages.push(Message {
-                        role: "tool".to_string(),
-                        content: Some(result),
-                        reasoning_content: None,
-                        tool_calls: None,
-                        tool_call_id: Some(tc.id),
-                    });
+                    approved_calls.push((i, tc));
                 } else {
-                    let result = "Tool execution denied by user.".to_string();
-                    tx.send(AgentEvent::ToolEnd {
-                        name: tc.function.name.clone(),
-                    })
-                    .await?;
+                    denied_results.push((
+                        i,
+                        tc.id.clone(),
+                        "Tool execution denied by user.".to_string(),
+                    ));
+                }
+            }
+
+            // Execute approved tools in parallel
+            if !approved_calls.is_empty() {
+                // Notify start for each tool
+                for (_, tc) in &approved_calls {
+                    let _ = tx
+                        .send(AgentEvent::ToolStart {
+                            name: tc.function.name.clone(),
+                            args: tc.function.arguments.clone(),
+                        })
+                        .await;
+                }
+
+                // Execute in parallel
+                let tool_inputs: Vec<(String, serde_json::Map<String, serde_json::Value>)> =
+                    approved_calls
+                        .iter()
+                        .map(|(_, tc)| {
+                            (
+                                tc.function.name.clone(),
+                                serde_json::from_str(&tc.function.arguments).unwrap_or_default(),
+                            )
+                        })
+                        .collect();
+
+                let results = if tool_inputs.len() == 1 {
+                    // Single tool - execute directly for proper undo stack
+                    let (name, args) = tool_inputs.into_iter().next().unwrap();
+                    
+                    // Special handling for 'cd' to keep state
+                    if name == "execute_shell_command"
+                        && let Some(cmd) = args.get("command").and_then(|v| v.as_str())
+                        && let Some(stripped) = cmd.strip_prefix("cd ")
+                    {
+                        let new_dir = stripped.trim().trim_matches('"').trim_matches('\'');
+                        let target_path = self.cwd.join(new_dir);
+                        if target_path.exists() && target_path.is_dir()
+                            && let Ok(abs_path) = std::fs::canonicalize(target_path)
+                        {
+                            self.cwd = abs_path;
+                        }
+                    }
+
+                    let result = execute_tool(&name, &args, &mut self.undo_stack, Some(&self.cwd)).await;
+                    vec![(0, result, Vec::new())]
+                } else {
+                    // Multiple tools - execute in parallel
+                    execute_tools_parallel(&tool_inputs, Some(self.cwd.clone())).await
+                };
+
+                // Notify end and add tool messages
+                for (idx, result, undo_actions) in results {
+                    // Merge undo actions
+                    self.undo_stack.extend(undo_actions);
+                    
+                    let (_orig_idx, tc) = &approved_calls[idx];
+                    let result_str = match result {
+                        Ok(res) => res,
+                        Err(e) => format!("Error: {}", e),
+                    };
+
+                    let _ = tx
+                        .send(AgentEvent::ToolEnd {
+                            name: tc.function.name.clone(),
+                        })
+                        .await;
+
+                    // Check cancellation
+                    if self.cancel_token.is_cancelled() {
+                        break;
+                    }
+
                     self.messages.push(Message {
                         role: "tool".to_string(),
-                        content: Some(result),
+                        content: Some(result_str),
                         reasoning_content: None,
                         tool_calls: None,
-                        tool_call_id: Some(tc.id),
+                        tool_call_id: Some(tc.id.clone()),
                     });
                 }
             }
+
+            // Handle denied tools
+            for (_, tool_id, msg) in denied_results {
+                let _ = tx
+                    .send(AgentEvent::ToolEnd {
+                        name: "denied".to_string(),
+                    })
+                    .await;
+                self.messages.push(Message {
+                    role: "tool".to_string(),
+                    content: Some(msg),
+                    reasoning_content: None,
+                    tool_calls: None,
+                    tool_call_id: Some(tool_id),
+                });
+            }
+
+            // Check cancellation after tool execution
+            if self.cancel_token.is_cancelled() {
+                break;
+            }
         }
 
-        let _ = tx.send(AgentEvent::Done).await;
+        if !self.cancel_token.is_cancelled() {
+            let _ = tx.send(AgentEvent::Done).await;
+        }
+
+        if self.config.show_token_usage {
+            let total = self.token_usage.prompt_tokens + self.token_usage.completion_tokens;
+            let usage_msg = format!(
+                "\n{} [{} {} | {} {} | {} {}]\n",
+                "📊 Token Usage:".bold().blue(),
+                "Prompt:".cyan(),
+                self.token_usage.prompt_tokens.to_string().cyan(),
+                "Completion:".green(),
+                self.token_usage.completion_tokens.to_string().green(),
+                "Total:".yellow(),
+                total.to_string().yellow()
+            );
+            let _ = tx.send(AgentEvent::Content { content: usage_msg }).await;
+        }
+
         Ok(())
     }
 
@@ -350,7 +493,6 @@ impl DeepSeekAgent {
             .sum();
 
         while current_chars > max_chars && self.messages.len() > 1 {
-            // Index 0 is system prompt, remove oldest history at index 1
             if self.messages.len() > 1 {
                 let removed = self.messages.remove(1);
                 current_chars -= removed.content.as_deref().unwrap_or("").len()
@@ -363,7 +505,6 @@ impl DeepSeekAgent {
 
     pub fn undo(&mut self) -> String {
         if let Some(action) = self.undo_stack.pop() {
-            // Remove assistant and tool messages related to this undo
             while self.messages.len() > 1
                 && (self
                     .messages
@@ -385,7 +526,6 @@ impl DeepSeekAgent {
                             format!("✅ Undone {}: Restored {}", action.r#type, action.path)
                         }
                     } else {
-                        // If backup is None, it means the file was created during the action
                         if action.r#type == "write" || action.r#type == "replace" {
                             let _ = std::fs::remove_file(&action.path);
                             format!(

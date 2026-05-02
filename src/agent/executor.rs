@@ -1,14 +1,42 @@
 use crate::agent::agent::UndoAction;
 use crate::tools;
 use anyhow::Result;
+use futures::future::join_all;
 use serde_json::Value;
+use std::time::Duration;
+
+const DEFAULT_TOOL_TIMEOUT: Duration = Duration::from_secs(120);
+const LONG_TOOL_TIMEOUT: Duration = Duration::from_secs(600);
+
+/// Get appropriate timeout for a given tool
+fn tool_timeout(name: &str) -> Duration {
+    match name {
+        "git_clone" | "git_push" | "git_pull" | "execute_shell_command" | "fetch_url" => LONG_TOOL_TIMEOUT,
+        _ => DEFAULT_TOOL_TIMEOUT,
+    }
+}
 
 pub async fn execute_tool(
     name: &str,
     args_val: &serde_json::Map<String, Value>,
     undo_stack: &mut Vec<UndoAction>,
+    agent_cwd: Option<&std::path::Path>,
+) -> Result<String> {
+    let timeout = tool_timeout(name);
+
+    tokio::time::timeout(timeout, execute_tool_inner(name, args_val, undo_stack, agent_cwd))
+        .await
+        .unwrap_or_else(|_| Ok(format!("Tool '{}' timed out after {:?}", name, timeout)))
+}
+
+async fn execute_tool_inner(
+    name: &str,
+    args_val: &serde_json::Map<String, Value>,
+    undo_stack: &mut Vec<UndoAction>,
+    agent_cwd: Option<&std::path::Path>,
 ) -> Result<String> {
     match name {
+        // ... (match cases)
         // ─── File I/O ────────────────────────────────────────────
         "read_local_file" => {
             let path = args_val
@@ -57,15 +85,23 @@ pub async fn execute_tool(
                 .get("new_text")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
+            let fuzzy = args_val
+                .get("fuzzy")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true); // default to fuzzy matching
             let backup = tokio::fs::read(path).await.ok();
             undo_stack.push(UndoAction {
                 r#type: "replace".to_string(),
                 path: path.to_string(),
                 backup,
             });
-            tools::file_io::replace_text_in_file(path, old, new)
-                .await
-                .map(|_| "Text replaced.".to_string())
+            if fuzzy {
+                tools::file_io::fuzzy_replace_in_file(path, old, new).await
+            } else {
+                tools::file_io::replace_text_in_file(path, old, new)
+                    .await
+                    .map(|_| "Text replaced.".to_string())
+            }
         }
         "delete_file" => {
             let path = args_val
@@ -111,7 +147,20 @@ pub async fn execute_tool(
                 .get("is_background")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
-            tools::system::execute_shell_command(cmd, bg).await
+            // Use provided cwd or agent's current cwd
+            let cwd = args_val.get("cwd")
+                .and_then(|v| v.as_str())
+                .or_else(|| agent_cwd.and_then(|p| p.to_str()));
+                
+            let env_vars: Option<std::collections::HashMap<String, String>> = args_val
+                .get("env")
+                .and_then(|v| v.as_object())
+                .map(|obj| {
+                    obj.iter()
+                        .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
+                        .collect()
+                });
+            tools::system::execute_shell_command(cmd, bg, cwd, env_vars).await
         }
         "list_directory" => {
             let path = args_val.get("path").and_then(|v| v.as_str());
@@ -131,8 +180,14 @@ pub async fn execute_tool(
             tools::file_ops::tree_view(path, depth).await
         }
         "diff_files" => {
-            let f1 = args_val.get("file1").and_then(|v| v.as_str()).unwrap_or("");
-            let f2 = args_val.get("file2").and_then(|v| v.as_str()).unwrap_or("");
+            let f1 = args_val
+                .get("file1")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let f2 = args_val
+                .get("file2")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             tools::file_ops::diff_files(f1, f2).await
         }
         "hash_file" => {
@@ -158,15 +213,24 @@ pub async fn execute_tool(
 
         // ─── Code & Web ─────────────────────────────────────────
         "run_python_code" => {
-            let code = args_val.get("code").and_then(|v| v.as_str()).unwrap_or("");
+            let code = args_val
+                .get("code")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             tools::code_ops::run_python_code(code).await
         }
         "fetch_url" => {
-            let url = args_val.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            let url = args_val
+                .get("url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             tools::web_ops::fetch_url(url).await
         }
         "get_env_var" => {
-            let name = args_val.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let name = args_val
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             Ok(tools::web_ops::get_env_var(name))
         }
         "get_system_info" => tools::system::get_system_info(),
@@ -232,7 +296,10 @@ pub async fn execute_tool(
             tools::git_ops::git_checkout(path, target).await
         }
         "git_clone" => {
-            let url = args_val.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            let url = args_val
+                .get("url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let dest = args_val.get("dest").and_then(|v| v.as_str());
             tools::git_ops::git_clone(url, dest).await
         }
@@ -248,11 +315,17 @@ pub async fn execute_tool(
 
         // ─── GitHub API Operations ─────────────────────────────
         "github_repo_info" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             tools::github_ops::github_repo_info(repo).await
         }
         "github_repo_list_issues" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let state = args_val.get("state").and_then(|v| v.as_str());
             let limit = args_val
                 .get("limit")
@@ -261,14 +334,23 @@ pub async fn execute_tool(
             tools::github_ops::github_repo_list_issues(repo, state, limit).await
         }
         "github_issue_create" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-            let title = args_val.get("title").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let title = args_val
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let body = args_val.get("body").and_then(|v| v.as_str());
             let labels = args_val.get("labels").and_then(|v| v.as_str());
             tools::github_ops::github_issue_create(repo, title, body, labels).await
         }
         "github_issue_update" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let issue_number = args_val
                 .get("issue_number")
                 .and_then(|v| v.as_u64())
@@ -279,7 +361,10 @@ pub async fn execute_tool(
             tools::github_ops::github_issue_update(repo, issue_number, title, body, state).await
         }
         "github_pr_list" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let state = args_val.get("state").and_then(|v| v.as_str());
             let limit = args_val
                 .get("limit")
@@ -288,10 +373,22 @@ pub async fn execute_tool(
             tools::github_ops::github_pr_list(repo, state, limit).await
         }
         "github_pr_create" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-            let title = args_val.get("title").and_then(|v| v.as_str()).unwrap_or("");
-            let head = args_val.get("head").and_then(|v| v.as_str()).unwrap_or("");
-            let base = args_val.get("base").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let title = args_val
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let head = args_val
+                .get("head")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let base = args_val
+                .get("base")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let body = args_val.get("body").and_then(|v| v.as_str());
             let draft = args_val
                 .get("draft")
@@ -300,7 +397,10 @@ pub async fn execute_tool(
             tools::github_ops::github_pr_create(repo, title, head, base, body, draft).await
         }
         "github_pr_info" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let pr_number = args_val
                 .get("pr_number")
                 .and_then(|v| v.as_u64())
@@ -308,7 +408,10 @@ pub async fn execute_tool(
             tools::github_ops::github_pr_info(repo, pr_number).await
         }
         "github_pr_merge" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let pr_number = args_val
                 .get("pr_number")
                 .and_then(|v| v.as_u64())
@@ -317,7 +420,10 @@ pub async fn execute_tool(
             tools::github_ops::github_pr_merge(repo, pr_number, method).await
         }
         "github_search_code" => {
-            let query = args_val.get("query").and_then(|v| v.as_str()).unwrap_or("");
+            let query = args_val
+                .get("query")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let repo = args_val.get("repo").and_then(|v| v.as_str());
             let limit = args_val
                 .get("limit")
@@ -326,7 +432,10 @@ pub async fn execute_tool(
             tools::github_ops::github_search_code(query, repo, limit).await
         }
         "github_search_repos" => {
-            let query = args_val.get("query").and_then(|v| v.as_str()).unwrap_or("");
+            let query = args_val
+                .get("query")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let limit = args_val
                 .get("limit")
                 .and_then(|v| v.as_u64())
@@ -334,17 +443,29 @@ pub async fn execute_tool(
             tools::github_ops::github_search_repos(query, limit).await
         }
         "github_get_file" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
-            let path = args_val.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let path = args_val
+                .get("path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let ref_ = args_val.get("ref").and_then(|v| v.as_str());
             tools::github_ops::github_get_file(repo, path, ref_).await
         }
         "github_workflow_list" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             tools::github_ops::github_workflow_list(repo).await
         }
         "github_workflow_runs" => {
-            let repo = args_val.get("repo").and_then(|v| v.as_str()).unwrap_or("");
+            let repo = args_val
+                .get("repo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let workflow_id = args_val.get("workflow_id").and_then(|v| v.as_str());
             let limit = args_val
                 .get("limit")
@@ -355,4 +476,27 @@ pub async fn execute_tool(
 
         _ => Ok(format!("Tool {} not implemented or unknown.", name)),
     }
+}
+
+/// Execute multiple independent tool calls in parallel
+pub async fn execute_tools_parallel(
+    tool_calls: &[(String, serde_json::Map<String, Value>)],
+    agent_cwd: Option<std::path::PathBuf>,
+) -> Vec<(usize, Result<String>, Vec<UndoAction>)> {
+    let futures: Vec<_> = tool_calls
+        .iter()
+        .enumerate()
+        .map(|(idx, (name, args))| {
+            let name = name.clone();
+            let args = args.clone();
+            let cwd = agent_cwd.clone();
+            async move {
+                let mut temp_undo = Vec::new();
+                let result = execute_tool(&name, &args, &mut temp_undo, cwd.as_deref()).await;
+                (idx, result, temp_undo)
+            }
+        })
+        .collect();
+
+    join_all(futures).await
 }

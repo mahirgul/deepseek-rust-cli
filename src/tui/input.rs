@@ -22,6 +22,12 @@ pub struct InputHandler {
     history_path: PathBuf,
 }
 
+impl Default for InputHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InputHandler {
     pub fn new() -> Self {
         let history_path = PathBuf::from(".deep/input_history.json");
@@ -133,6 +139,44 @@ impl InputHandler {
                         }
                         cursor_pos = buffer.chars().count();
                         self.redraw(&buffer, cursor_pos)?;
+                    }
+                    KeyCode::Tab => {
+                        let current_word = buffer
+                            .split_whitespace()
+                            .last()
+                            .unwrap_or("")
+                            .to_string();
+                        
+                        if !current_word.is_empty() {
+                            let mut dir = ".";
+                            let mut pattern = current_word.as_str();
+                            
+                            if let Some(pos) = current_word.rfind('/') {
+                                dir = &current_word[..pos];
+                                if dir.is_empty() { dir = "/"; }
+                                pattern = &current_word[pos+1..];
+                            }
+
+                            if let Ok(entries) = std::fs::read_dir(dir) {
+                                let matches: Vec<String> = entries
+                                    .filter_map(|e| e.ok())
+                                    .map(|e| e.file_name().to_string_lossy().to_string())
+                                    .filter(|name| name.starts_with(pattern))
+                                    .collect();
+                                
+                                if matches.len() == 1 {
+                                    let remaining = &matches[0][pattern.len()..];
+                                    buffer.push_str(remaining);
+                                    if std::path::Path::new(dir).join(&matches[0]).is_dir() {
+                                        buffer.push('/');
+                                    }
+                                    cursor_pos = buffer.chars().count();
+                                    self.redraw(&buffer, cursor_pos)?;
+                                } else if !matches.is_empty() {
+                                    // Multiple matches - could show them but for now just do nothing or beep
+                                }
+                            }
+                        }
                     }
                     KeyCode::Char(c) => {
                         let char_idx = buffer

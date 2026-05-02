@@ -1,23 +1,14 @@
-mod agent;
-mod api;
-mod cli;
-mod config;
-mod logger;
-mod tools;
-mod tui;
-mod version;
-
-use crate::agent::agent::{AgentEvent, ApprovalResult, DeepSeekAgent};
-use crate::agent::mentions::process_mentions;
-use crate::cli::Args;
-use crate::config::{get_api_key, init_workspace, load_config};
-use crate::logger::init_logger;
-use crate::tui::input::{InputHandler, InputResult};
-use crate::version::VERSION;
 use anyhow::Result;
 use clap::Parser;
 use colored::*;
 use crossterm::{cursor, execute, terminal};
+use deepseek_rust_cli::agent::agent::{AgentEvent, ApprovalResult, DeepSeekAgent};
+use deepseek_rust_cli::agent::mentions::process_mentions;
+use deepseek_rust_cli::cli::Args;
+use deepseek_rust_cli::config::{get_api_key, init_workspace, load_config};
+use deepseek_rust_cli::logger::init_logger;
+use deepseek_rust_cli::tui::input::{InputHandler, InputResult};
+use deepseek_rust_cli::version::VERSION;
 use std::io::{self, Write};
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -59,7 +50,8 @@ async fn main() -> Result<()> {
 
                 if text.starts_with('/') {
                     if let Some(res) =
-                        crate::agent::commands::process_command(&mut agent, &text).await?
+                        deepseek_rust_cli::agent::commands::process_command(&mut agent, &text)
+                            .await?
                     {
                         if res == "RETRY" {
                             while agent.messages.len() > 1
@@ -85,38 +77,42 @@ async fn main() -> Result<()> {
                 } else {
                     process_mentions(&text)
                 };
-                let (tx, mut rx) = mpsc::channel(100);
+                let (tx, rx) = mpsc::channel(100);
                 let (app_tx, app_rx) = mpsc::channel(1);
+                let cancel_token = agent.cancel_token.clone();
 
                 let chat_future = agent.chat_stream(processed_input, tx, app_rx);
 
                 let event_loop = async move {
+                    let mut rx = rx; // Make it mutable inside the block
                     let mut full_message = String::new();
                     let mut content_buffer = String::new();
                     let mut is_reasoning = false;
                     let mut spinner_active = true;
-                    let skin = termimad::MadSkin::default();
 
                     // Spinner and Status state
                     let (spinner_tx, mut spinner_rx) = mpsc::channel::<()>(1);
                     tokio::spawn(async move {
-                        let spinner_chars = vec!['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-                        let status_words = vec!["Thinking", "Reasoning", "Processing", "Analyzing", "Wait"];
+                        let spinner_chars =
+                            vec!['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+                        let status_words = [
+                            "Thinking", "Reasoning", "Processing", "Analyzing", "Wait",
+                        ];
                         let mut i = 0;
                         let mut word_idx = 0;
                         let start_time = tokio::time::Instant::now();
-                        
+
                         loop {
                             tokio::select! {
                                 _ = spinner_rx.recv() => break,
                                 _ = tokio::time::sleep(Duration::from_millis(80)) => {
                                     let elapsed = start_time.elapsed().as_secs_f32();
-                                    if i % 10 == 0 { // Change word every ~0.8s
+                                    if i % 10 == 0 {
                                         word_idx = (word_idx + 1) % status_words.len();
                                     }
-                                    print!("\r{} {}... {:.1}s", 
-                                        spinner_chars[i % spinner_chars.len()].to_string().cyan(), 
-                                        status_words[word_idx].dimmed(), 
+                                    print!("\r{} {}... {:.1}s",
+                                        spinner_chars[i % spinner_chars.len()].to_string().cyan(),
+                                        status_words[word_idx].dimmed(),
                                         elapsed
                                     );
                                     io::stdout().flush().unwrap_or(());
@@ -124,16 +120,15 @@ async fn main() -> Result<()> {
                                 }
                             }
                         }
-                        // Clear the status line
                         print!("\r\x1b[K");
                         io::stdout().flush().unwrap_or(());
                     });
 
                     while let Some(event) = rx.recv().await {
                         match event {
-                            AgentEvent::Reasoning { .. } => {
+                            AgentEvent::Reasoning { content } => {
                                 is_reasoning = true;
-                                // We don't print anything here, just keep the status indicator running
+                                tracing::debug!("Agent Reasoning: {}", content);
                             }
                             AgentEvent::Content { content } => {
                                 if spinner_active {
@@ -141,7 +136,7 @@ async fn main() -> Result<()> {
                                     spinner_active = false;
                                 }
                                 if is_reasoning {
-                                    println!(); // Add newline after reasoning completes
+                                    println!();
                                     is_reasoning = false;
                                 }
                                 content_buffer.push_str(&content);
@@ -153,11 +148,19 @@ async fn main() -> Result<()> {
                                 }
                             }
                             AgentEvent::ToolStart { name, args } => {
+                                if spinner_active {
+                                    let _ = spinner_tx.send(()).await;
+                                    spinner_active = false;
+                                }
                                 if !content_buffer.is_empty() {
                                     println!("{}", content_buffer);
                                     content_buffer.clear();
                                 }
-                                println!("\n🔧 {} {}", "Executing tool:".yellow(), name.bold());
+                                println!(
+                                    "\n🔧 {} {}",
+                                    "Executing tool:".yellow(),
+                                    name.bold()
+                                );
                                 if args.len() < 200 {
                                     println!("  {} {}", "Args:".dimmed(), args.dimmed());
                                 }
@@ -179,11 +182,14 @@ async fn main() -> Result<()> {
                                     "Approval Required for tool:".yellow().bold(),
                                     name.bold().red()
                                 );
-                                println!("   {} {}", "Arguments:".dimmed(), args.dimmed());
+                                println!(
+                                    "   {} {}",
+                                    "Arguments:".dimmed(),
+                                    args.dimmed()
+                                );
                                 print!("   {} [y/n/a]: ", "Approve?".yellow().bold());
                                 io::stdout().flush().unwrap_or(());
 
-                                // Use spawn_blocking to avoid deadlock and blocking async thread
                                 let res = tokio::task::spawn_blocking(|| {
                                     let mut input = String::new();
                                     io::stdin().read_line(&mut input).unwrap_or(0);
@@ -223,27 +229,55 @@ async fn main() -> Result<()> {
                                     content_buffer.clear();
                                 }
 
-                                // Render full message with markdown if it contains formatting
                                 if full_message.contains("```")
                                     || full_message.contains("**")
                                     || full_message.contains('#')
                                 {
                                     println!("\n--- {} ---", "Formatted View".dimmed());
-                                    skin.print_text(&full_message);
+                                    deepseek_rust_cli::tui::highlight::print_highlighted_markdown(&full_message);
                                     println!("---");
                                 }
 
                                 println!();
+                            }
+                            AgentEvent::Aborted => {
+                                if spinner_active {
+                                    let _ = spinner_tx.send(()).await;
+                                }
+                                println!("\n🛑 {}", "Operation aborted by user.".yellow());
                             }
                         }
                     }
                     Ok::<(), anyhow::Error>(())
                 };
 
+                // Cancellation listener
+                let cancel_token_task = cancel_token.clone();
+                tokio::spawn(async move {
+                    use crossterm::event::{poll, read, Event, KeyCode};
+                    use std::time::Duration;
+                    
+                    loop {
+                        if cancel_token_task.is_cancelled() {
+                            break;
+                        }
+                        if let Ok(true) = poll(Duration::from_millis(100))
+                            && let Ok(Event::Key(key)) = read()
+                            && (key.code == KeyCode::Esc || (key.code == KeyCode::Char('c') && key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)))
+                        {
+                            cancel_token_task.cancel();
+                            break;
+                        }
+                    }
+                });
+
                 let (chat_res, _) = tokio::join!(chat_future, event_loop);
-                if let Err(e) = chat_res {
+                if let Err(e) = chat_res
+                    && !e.to_string().contains("cancelled")
+                {
                     println!("\n❌ Agent error: {}", e);
                 }
+                agent.reset_cancel();
             }
             InputResult::Exit | InputResult::Eof => break,
         }
@@ -259,7 +293,6 @@ fn print_welcome_banner(agent: &DeepSeekAgent) {
     let line = "#".repeat(w).bright_blue();
     println!("{}", line);
 
-    // Line 1: Title and Version
     let title_part = format!(
         "🚀 {} {}",
         "DeepSeek CLI".bold().bright_yellow(),
@@ -272,9 +305,6 @@ fn print_welcome_banner(agent: &DeepSeekAgent) {
             .to_string()
             .dimmed()
     );
-    println!(" {} │ {}", title_part, time_part);
-
-    // Line 2: Host and Directory
     let host = hostname::get()
         .map(|h| h.to_string_lossy().to_string())
         .unwrap_or_default()
@@ -288,20 +318,23 @@ fn print_welcome_banner(agent: &DeepSeekAgent) {
     let host_str = format!("💻 {}", host);
     let dir_str = format!("📂 {}", dir);
 
-    // Check length without color codes for accurate wrapping
-    let plain_len = format!(" 💻 {} │ 📂 {}", host, dir).len();
+    let plain_len = format!(" {}  {} │ {} │ {}", title_part, time_part, host, dir).len();
 
     if plain_len > w + 20 {
-        // Adjusted for color codes
-        println!("  {}", host_str);
-        println!("  {}", dir_str);
-    } else {
+        println!(" {} │ {}", title_part, time_part);
         println!("  {} {} {}", host_str, "│".dimmed(), dir_str);
+    } else {
+        println!(
+            " {} │ {} │ {} {} {}",
+            title_part,
+            time_part,
+            host_str,
+            "│".dimmed(),
+            dir_str
+        );
     }
 
     println!();
-
-    // Line 3: Commands
     println!(
         "  📌 {}  🔧 {}  🗑️ {}  🔁 {}  💾 {}  📂 {}  🚪 {}",
         "/help".cyan().bold(),

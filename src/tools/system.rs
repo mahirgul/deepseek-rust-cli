@@ -1,7 +1,13 @@
 use anyhow::Result;
+use std::collections::HashMap;
 use tokio::process::Command;
 
-pub async fn execute_shell_command(command: &str, is_background: bool) -> Result<String> {
+pub async fn execute_shell_command(
+    command: &str,
+    is_background: bool,
+    cwd: Option<&str>,
+    env_vars: Option<HashMap<String, String>>,
+) -> Result<String> {
     let mut cmd = if cfg!(target_os = "windows") {
         let mut c = Command::new("cmd");
         c.arg("/C").arg(command);
@@ -11,6 +17,14 @@ pub async fn execute_shell_command(command: &str, is_background: bool) -> Result
         c.arg("-c").arg(command);
         c
     };
+
+    if let Some(path) = cwd {
+        cmd.current_dir(path);
+    }
+
+    if let Some(vars) = env_vars {
+        cmd.envs(vars);
+    }
 
     if is_background {
         let mut child = cmd.spawn()?;
