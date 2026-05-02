@@ -1,21 +1,21 @@
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(
-    author,
-    version,
-    about,
-    long_about = "A CLI tool that connects to the DeepSeek API as an AI agent."
-)]
+#[command(author, version, about, long_about = None)]
 pub struct Args {
+    /// Session ID to resume
+    #[arg(short, long)]
+    pub session: Option<String>,
+
+    /// AI Model to use
     #[arg(short, long)]
     pub model: Option<String>,
 
-    /// Prompt for running a one-shot command (Sub-agent)
+    /// Debug mode
     #[arg(short, long)]
-    pub prompt: Option<String>,
+    pub debug: bool,
 
-    /// Automatically approve all commands
-    #[arg(short, long, default_value_t = false)]
+    /// Auto-approve all tools
+    #[arg(short, long)]
     pub auto_approve: bool,
 }

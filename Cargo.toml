@@ -1,23 +1,71 @@
 [package]
 name = "deepseek-rust-cli"
-version = "0.1.0"
+version = "1.5.0"
 edition = "2024"
+authors = ["Mahir Gul <mahirgul@gmail.com>"]
+description = "A lightweight, high-speed autonomous CLI system agent port of DeepSeek CLI."
+repository = "https://github.com/mahirgul/deepseek-rust-cli"
+license = "MIT"
+readme = "README.md"
+keywords = ["cli", "ai", "deepseek", "agent", "assistant"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-clap = { version = "4.6.1", features = ["derive"] }
-colored = "3.1.1"
-dotenvy = "0.15.7"
-futures = "0.3.32"
-reqwest = { version = "0.12.28", features = ["json", "rustls-tls", "stream"], default-features = false }
-reqwest-eventsource = "0.6.0"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-tokio = { version = "1.52.1", features = ["full"] }
-tokio-stream = "0.1.18"
-rustyline = "15.0.0"
-termimad = "0.31.1"
-html2text = "0.13.5"
-regex = "1.11.1"
-anyhow = "1.0.95"
-syntect = "5.2.0"
-tiktoken-rs = "0.6.0"
+# CLI & UI
+clap = { version = "4.6", features = ["derive"] }
+crossterm = "0.28"
+ratatui = "0.28"
+colored = "3.1"
+termimad = "0.31"
+indicatif = "0.17"
+
+# Async Runtime
+tokio = { version = "1.36", features = ["full"] }
+futures = "0.3"
+
+# HTTP Client
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+
+# System Info & Operations
+sysinfo = "0.30"
+hostname = "0.4"
+libc = "0.2"
+walkdir = "2.5"
+glob = "0.3"
+regex = "1.10"
+
+# Git Operations
+git2 = { version = "0.18", features = ["vendored-openssl"] }
+
+# File Operations & Compression
+sha2 = "0.10"
+md5 = "0.7"
+zip = "0.6"
+tar = "0.4"
+flate2 = "1.0"
+
+# HTML & Text Processing
+scraper = "0.18"
+html2text = "0.13"
+tiktoken-rs = "0.5"
+
+# Utilities
+uuid = { version = "1.7", features = ["v4"] }
+chrono = "0.4"
+dotenvy = "0.15"
+anyhow = "1.0"
+thiserror = "1.0"
+dirs = "5.0"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.10"

@@ -1,0 +1,27 @@
+use crate::api::types::Message;
+use std::fs;
+use std::path::PathBuf;
+
+pub fn load_history(session_id: &str) -> Vec<Message> {
+    let path = get_history_path(session_id);
+    if let Ok(content) = fs::read_to_string(path) {
+        if let Ok(msgs) = serde_json::from_str::<Vec<Message>>(&content) {
+            return msgs;
+        }
+    }
+    Vec::new()
+}
+
+pub fn save_history(session_id: &str, messages: &[Message]) {
+    let path = get_history_path(session_id);
+    let _ = fs::create_dir_all(path.parent().unwrap());
+    if let Ok(json) = serde_json::to_string_pretty(messages) {
+        let _ = fs::write(path, json);
+    }
+}
+
+fn get_history_path(session_id: &str) -> PathBuf {
+    let mut path = PathBuf::from(".deep/history");
+    path.push(format!("{}.json", session_id));
+    path
+}
