@@ -1,6 +1,8 @@
 # DeepSeek Rust CLI Agent 🚀
 
-An autonomous AI software engineer and CLI assistant powered by DeepSeek. This tool provides a professional, interactive interface for terminal-based AI operations with full tool-use capabilities.
+An autonomous AI software engineer and CLI assistant powered by DeepSeek. This project was developed with the assistance of **Gemini CLI**.
+
+> **⚠️ Note:** This project is currently in a **Testing & Development** phase. Use it at your own risk.
 
 [![Release](https://img.shields.io/github/v/release/mahirgul/deepseek-rust-cli)](https://github.com/mahirgul/deepseek-rust-cli/releases)
 [![License](https://img.shields.io/github/license/mahirgul/deepseek-rust-cli)](LICENSE)
