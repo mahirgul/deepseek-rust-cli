@@ -44,7 +44,7 @@ async fn github_get(url: &str) -> Result<String> {
     let body = resp.text().await?;
 
     if !status.is_success() {
-        return Ok(format!("GitHub API error ({}): {}", status.as_u16(), body));
+        anyhow::bail!("GitHub API error ({}): {}", status.as_u16(), body);
     }
     Ok(body)
 }
@@ -65,11 +65,7 @@ async fn github_post(url: &str, body: &serde_json::Value) -> Result<String> {
     let body_text = resp.text().await?;
 
     if !status.is_success() {
-        return Ok(format!(
-            "GitHub API error ({}): {}",
-            status.as_u16(),
-            body_text
-        ));
+        anyhow::bail!("GitHub API error ({}): {}", status.as_u16(), body_text);
     }
     Ok(body_text)
 }
@@ -90,11 +86,7 @@ async fn github_patch(url: &str, body: &serde_json::Value) -> Result<String> {
     let body_text = resp.text().await?;
 
     if !status.is_success() {
-        return Ok(format!(
-            "GitHub API error ({}): {}",
-            status.as_u16(),
-            body_text
-        ));
+        anyhow::bail!("GitHub API error ({}): {}", status.as_u16(), body_text);
     }
     Ok(body_text)
 }
@@ -132,7 +124,7 @@ pub async fn github_repo_list_issues(
     let body = github_get(&url).await?;
 
     // Simplify the JSON output
-    let issues: Vec<serde_json::Value> = serde_json::from_str(&body).unwrap_or_default();
+    let issues: Vec<serde_json::Value> = serde_json::from_str(&body)?;
     let summary: Vec<String> = issues
         .iter()
         .map(|i| {
@@ -220,7 +212,7 @@ pub async fn github_pr_list(
     );
     let body = github_get(&url).await?;
 
-    let prs: Vec<serde_json::Value> = serde_json::from_str(&body).unwrap_or_default();
+    let prs: Vec<serde_json::Value> = serde_json::from_str(&body)?;
     let summary: Vec<String> = prs
         .iter()
         .map(|pr| {
@@ -294,7 +286,20 @@ pub async fn github_pr_merge(repo: &str, pr_number: u64, method: Option<&str>) -
     let json = serde_json::json!({ "merge_method": merge_method });
 
     let resp = github_post(&url, &json).await?;
-    Ok(resp)
+    let merge_result: serde_json::Value = serde_json::from_str(&resp)?;
+    if merge_result["merged"].as_bool().unwrap_or(false) {
+        Ok(format!(
+            "PR #{} merged: {}",
+            pr_number,
+            merge_result["message"].as_str().unwrap_or("Success")
+        ))
+    } else {
+        Ok(format!(
+            "PR #{} merge failed: {}",
+            pr_number,
+            merge_result["message"].as_str().unwrap_or("Unknown error")
+        ))
+    }
 }
 
 // ─── Search ─────────────────────────────────────────────────────────
@@ -329,7 +334,7 @@ pub async fn github_search_code(
         .await?;
 
     let body = resp.text().await?;
-    let search_result: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+    let search_result: serde_json::Value = serde_json::from_str(&body)?;
     let items = search_result["items"]
         .as_array()
         .cloned()
@@ -371,7 +376,7 @@ pub async fn github_search_repos(query: &str, limit: Option<usize>) -> Result<St
         .await?;
 
     let body = resp.text().await?;
-    let search_result: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+    let search_result: serde_json::Value = serde_json::from_str(&body)?;
     let items = search_result["items"]
         .as_array()
         .cloned()
@@ -409,7 +414,7 @@ pub async fn github_get_file(repo: &str, path: &str, ref_: Option<&str>) -> Resu
     );
 
     let body = github_get(&url).await?;
-    let file_info: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+    let file_info: serde_json::Value = serde_json::from_str(&body)?;
 
     if let Some(content) = file_info["content"].as_str() {
         let cleaned: String = content.chars().filter(|c| !c.is_whitespace()).collect();
@@ -417,8 +422,10 @@ pub async fn github_get_file(repo: &str, path: &str, ref_: Option<&str>) -> Resu
         let bytes = general_purpose::STANDARD.decode(cleaned)?;
         let decoded = String::from_utf8(bytes)?;
         Ok(decoded)
+    } else if file_info.is_array() {
+        Ok(format!("Path '{}' is a directory listing.", path))
     } else {
-        Ok(body)
+        anyhow::bail!("Could not retrieve content for path '{}'.", path);
     }
 }
 
@@ -430,7 +437,30 @@ pub async fn github_workflow_list(repo: &str) -> Result<String> {
         "https://api.github.com/repos/{}/{}/actions/workflows",
         owner, name
     );
-    github_get(&url).await
+    let body = github_get(&url).await?;
+    let workflows: serde_json::Value = serde_json::from_str(&body)?;
+    let items = workflows["workflows"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+
+    let summary: Vec<String> = items
+        .iter()
+        .map(|w| {
+            format!(
+                "{} ({}) - {}",
+                w["name"].as_str().unwrap_or(""),
+                w["id"].as_u64().unwrap_or(0),
+                w["state"].as_str().unwrap_or(""),
+            )
+        })
+        .collect();
+
+    if summary.is_empty() {
+        Ok("No workflows found.".to_string())
+    } else {
+        Ok(summary.join("\n"))
+    }
 }
 
 pub async fn github_workflow_runs(
@@ -454,7 +484,7 @@ pub async fn github_workflow_runs(
     };
 
     let body = github_get(&url).await?;
-    let runs: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+    let runs: serde_json::Value = serde_json::from_str(&body)?;
     let items = runs["workflow_runs"]
         .as_array()
         .cloned()

@@ -102,6 +102,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.platform.target }} --verbose
 
       - name: Run Tests
+        shell: bash
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
