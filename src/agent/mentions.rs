@@ -1,6 +1,5 @@
 use regex::Regex;
 use std::fs;
-use std::path::Path;
 use std::sync::OnceLock;
 
 static MENTION_RE: OnceLock<Regex> = OnceLock::new();
@@ -14,13 +13,22 @@ pub fn process_mentions(text: &str) -> String {
     for cap in mention_re.captures_iter(text) {
         let full_match = cap.get(0).unwrap();
         let path_str = cap[1].trim();
-        let path = Path::new(path_str);
 
         // Push everything between last match and current match
         result.push_str(&text[last_end..full_match.start()]);
 
-        if path.exists() && path.is_file() {
-            if let Ok(content) = fs::read_to_string(path) {
+        // Validate path for security before reading
+        let validated_path = match crate::tools::base::validate_path(path_str) {
+            Ok(p) => p,
+            Err(_) => {
+                result.push_str(full_match.as_str());
+                last_end = full_match.end();
+                continue;
+            }
+        };
+
+        if validated_path.exists() && validated_path.is_file() {
+            if let Ok(content) = fs::read_to_string(&validated_path) {
                 let trimmed = if content.len() > 50000 {
                     format!("{}... (truncated)", &content[..50000])
                 } else {
@@ -47,11 +55,11 @@ pub fn process_mentions(text: &str) -> String {
 mod tests {
     use super::*;
     use std::fs;
-    use tempfile::tempdir;
+    use tempfile::TempDir;
 
     #[test]
     fn test_process_mentions_basic() {
-        let dir = tempdir().unwrap();
+        let dir = TempDir::new_in(".").unwrap();
         let file_path = dir.path().join("mention.txt");
         fs::write(&file_path, "file content").unwrap();
 

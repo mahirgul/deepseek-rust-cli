@@ -12,11 +12,6 @@ pub fn check_for_updates_background() {
     });
 }
 
-/// Get the latest version string if it has been checked
-pub fn get_latest_available_version() -> Option<String> {
-    LATEST_VERSION.get().cloned().flatten()
-}
-
 /// Perform the actual check (can be slow)
 fn check_latest_version() -> Result<String> {
     let releases = self_update::backends::github::ReleaseList::configure()
@@ -36,9 +31,7 @@ fn check_latest_version() -> Result<String> {
 }
 
 /// Execute the update process
-pub fn run_update() -> Result<()> {
-    println!("Checking for updates...");
-
+pub fn run_update() -> Result<String> {
     let status = Update::configure()
         .repo_owner("mahirgul")
         .repo_name("deepseek-rust-cli")
@@ -50,12 +43,14 @@ pub fn run_update() -> Result<()> {
         .update()?;
 
     if status.updated() {
-        println!("Successfully updated to version {}!", status.version());
-        println!("Please restart the application.");
-        std::process::exit(0);
+        Ok(format!(
+            "✅ Successfully updated to version {}! Please restart the application.",
+            status.version()
+        ))
     } else {
-        println!("You are already using the latest version ({}).", VERSION);
+        Ok(format!(
+            "ℹ️ You are already using the latest version ({}).",
+            VERSION
+        ))
     }
-
-    Ok(())
 }

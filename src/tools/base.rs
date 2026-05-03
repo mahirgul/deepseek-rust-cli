@@ -54,13 +54,34 @@ impl ToolRegistry {
 
 pub fn validate_path(path: &str) -> Result<std::path::PathBuf> {
     let p = std::path::PathBuf::from(path);
-    if p.is_absolute() {
-        Ok(p)
+    let abs = if p.is_absolute() {
+        p
     } else {
-        let mut abs = std::env::current_dir()?;
-        abs.push(p);
-        Ok(abs)
+        let mut a = std::env::current_dir()?;
+        a.push(p);
+        a
+    };
+
+    // Canonicalize to resolve '..' and symlinks
+    let canonical = match std::fs::canonicalize(&abs) {
+        Ok(c) => c,
+        Err(_) => {
+            // If it doesn't exist, we still want to check the parent
+            if let Some(parent) = abs.parent() {
+                let can_parent = std::fs::canonicalize(parent)?;
+                can_parent.join(abs.file_name().unwrap_or_default())
+            } else {
+                abs
+            }
+        }
+    };
+
+    let cwd = std::env::current_dir()?;
+    if !canonical.starts_with(&cwd) && !path.is_empty() {
+        anyhow::bail!("Path traversal detected: access to '{}' is denied", path);
     }
+
+    Ok(canonical)
 }
 
 #[cfg(test)]

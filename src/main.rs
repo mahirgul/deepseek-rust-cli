@@ -1,6 +1,5 @@
 use anyhow::Result;
 use clap::Parser;
-use colored::*;
 use crossterm::event::{self, Event};
 use crossterm::{cursor, execute, terminal};
 use deepseek_rust_cli::agent::agent::{AgentEvent, DeepSeekAgent};
@@ -10,12 +9,11 @@ use deepseek_rust_cli::cli::Args;
 use deepseek_rust_cli::config::{get_api_key, init_workspace, load_config};
 use deepseek_rust_cli::logger::init_logger;
 use deepseek_rust_cli::tui::event_loop::{EventLoop, TuiEvent};
-use deepseek_rust_cli::version::VERSION;
 use std::io;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -55,10 +53,16 @@ async fn main() -> Result<()> {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or(Duration::from_secs(0));
 
-            if event::poll(timeout).unwrap_or(false)
-                && let Event::Key(key) = event::read().unwrap()
-            {
-                let _ = tui_tx_for_input.send(TuiEvent::Input(key)).await;
+            if event::poll(timeout).unwrap_or(false) {
+                match event::read().unwrap() {
+                    Event::Key(key) => {
+                        let _ = tui_tx_for_input.send(TuiEvent::Input(key)).await;
+                    }
+                    Event::Mouse(mouse) => {
+                        let _ = tui_tx_for_input.send(TuiEvent::Mouse(mouse)).await;
+                    }
+                    _ => {}
+                }
             }
             if last_tick.elapsed() >= tick_rate {
                 let _ = tui_tx_for_input.send(TuiEvent::Tick).await;
@@ -135,78 +139,4 @@ async fn main() -> Result<()> {
     }
 
     std::process::exit(0);
-}
-
-fn _print_welcome_banner(agent: &DeepSeekAgent) {
-    let (width, _) = crossterm::terminal::size().unwrap_or((80, 24));
-    let w = width as usize;
-
-    let line = "#".repeat(w).bright_blue();
-    println!("{}", line);
-
-    let title_part = format!(
-        "🚀 {} {}",
-        "DeepSeek CLI".bold().bright_yellow(),
-        VERSION.cyan()
-    );
-    let time_part = format!(
-        "📅 {}",
-        chrono::Local::now()
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string()
-            .dimmed()
-    );
-    let host = hostname::get()
-        .map(|h| h.to_string_lossy().to_string())
-        .unwrap_or_default()
-        .bright_magenta();
-    let dir = std::env::current_dir()
-        .unwrap_or_default()
-        .display()
-        .to_string()
-        .bright_white();
-
-    let host_str = format!("💻 {}", host);
-    let dir_str = format!("📂 {}", dir);
-
-    let plain_len = format!(" {}  {} │ {} │ {}", title_part, time_part, host, dir).len();
-
-    if plain_len > w + 20 {
-        println!(" {} │ {}", title_part, time_part);
-        println!("  {} {} {}", host_str, "│".dimmed(), dir_str);
-    } else {
-        println!(
-            " {} │ {} │ {} {} {}",
-            title_part,
-            time_part,
-            host_str,
-            "│".dimmed(),
-            dir_str
-        );
-    }
-
-    println!();
-    println!(
-        "  📌 {}  🔧 {}  🗑️ {}  🔁 {}  💾 {}  📂 {}  🚪 {}",
-        "Model".dimmed(),
-        "Tools".dimmed(),
-        "Clear".dimmed(),
-        "Undo".dimmed(),
-        "Save".dimmed(),
-        "Load".dimmed(),
-        "Exit".dimmed()
-    );
-    println!(
-        "  ✨ {}  🛠️ {}  🧹 {}  🔙 {}  📁 {}  📖 {}  🚪 {}",
-        agent.model.bright_cyan(),
-        "Enabled".bright_green(),
-        "/clear".bright_yellow(),
-        "/undo".bright_yellow(),
-        "/savemem".bright_yellow(),
-        "/resume".bright_yellow(),
-        "exit/quit".bright_red()
-    );
-    println!();
-    println!("{}", line);
-    println!();
 }

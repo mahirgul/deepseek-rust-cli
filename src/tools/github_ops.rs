@@ -412,8 +412,10 @@ pub async fn github_get_file(repo: &str, path: &str, ref_: Option<&str>) -> Resu
     let file_info: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
 
     if let Some(content) = file_info["content"].as_str() {
-        let decoded =
-            base64_decode(content).unwrap_or_else(|| "Unable to decode content.".to_string());
+        let cleaned: String = content.chars().filter(|c| !c.is_whitespace()).collect();
+        use base64::{engine::general_purpose, Engine as _};
+        let bytes = general_purpose::STANDARD.decode(cleaned)?;
+        let decoded = String::from_utf8(bytes)?;
         Ok(decoded)
     } else {
         Ok(body)
@@ -493,46 +495,4 @@ fn urlencoding(s: &str) -> String {
         }
     }
     result
-}
-
-fn base64_decode(input: &str) -> Option<String> {
-    use std::collections::HashMap;
-
-    let cleaned: String = input.chars().filter(|c| !c.is_whitespace()).collect();
-    let alphabet: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-        .chars()
-        .collect();
-    let mut index_map = HashMap::new();
-    for (i, c) in alphabet.iter().enumerate() {
-        index_map.insert(*c, i as u8);
-    }
-
-    let len = cleaned.len();
-    if !len.is_multiple_of(4) {
-        return None;
-    }
-
-    let mut bytes = Vec::new();
-    let chars: Vec<char> = cleaned.chars().collect();
-
-    for chunk in chars.chunks(4) {
-        let mut buf: [u8; 4] = [0; 4];
-        for (i, c) in chunk.iter().enumerate() {
-            if *c == '=' {
-                buf[i] = 0;
-            } else {
-                buf[i] = *index_map.get(c)?;
-            }
-        }
-
-        bytes.push((buf[0] << 2) | (buf[1] >> 4));
-        if chunk.get(2) != Some(&'=') {
-            bytes.push((buf[1] << 4) | (buf[2] >> 2));
-        }
-        if chunk.get(3) != Some(&'=') {
-            bytes.push((buf[2] << 6) | buf[3]);
-        }
-    }
-
-    String::from_utf8(bytes).ok()
 }

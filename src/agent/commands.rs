@@ -294,10 +294,7 @@ Available Commands:
 "#;
             Ok(Some(help.trim().to_string()))
         }
-        "/update" => {
-            crate::updater::run_update()?;
-            Ok(Some("Already up to date.".to_string()))
-        }
+        "/update" => crate::updater::run_update().map(Some),
         _ => Ok(None),
     }
 }

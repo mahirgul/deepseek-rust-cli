@@ -1,11 +1,16 @@
 use anyhow::Result;
 use futures::StreamExt;
+use once_cell::sync::Lazy;
+
+static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("Failed to create reqwest client")
+});
 
 pub async fn fetch_url(url: &str) -> Result<String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()?;
-    let response = client.get(url).send().await?;
+    let response = CLIENT.get(url).send().await?;
 
     // Limit to 1MB
     let max_size = 1024 * 1024;

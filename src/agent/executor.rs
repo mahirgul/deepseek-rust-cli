@@ -42,7 +42,13 @@ pub async fn execute_tool(
         execute_tool_inner(name, args_val, undo_stack, agent_cwd),
     )
     .await
-    .unwrap_or_else(|_| Ok(format!("Tool '{}' timed out after {:?}", name, timeout)))
+    .unwrap_or_else(|_| {
+        Err(anyhow::anyhow!(
+            "Tool '{}' timed out after {:?}",
+            name,
+            timeout
+        ))
+    })
 }
 
 async fn execute_tool_inner(

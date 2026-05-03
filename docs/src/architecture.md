@@ -8,7 +8,7 @@ DeepSeek Rust CLI is built with a focus on modularity and async performance.
 The brain of the system. It handles the conversation loop, context management, and decision-making for tool use.
 
 ### 2. TUI Layer (`src/tui/`)
-Powered by `ratatui` and `crossterm`. It provides a split-view interface with:
+Powered by `crossterm`. It provides a split-view interface with:
 - **Output Area:** Real-time log of events, tool outputs, and agent thoughts.
 - **Input Area:** Interactive prompt with slash command support and spinner/timer.
 

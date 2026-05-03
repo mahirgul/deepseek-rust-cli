@@ -124,11 +124,15 @@ pub async fn rename_file(src: &str, dst: &str) -> Result<()> {
 mod tests {
     use super::*;
     use std::fs;
-    use tempfile::tempdir;
+    use tempfile::TempDir;
+
+    fn tempdir_in_cwd() -> TempDir {
+        TempDir::new_in(".").expect("Failed to create temp dir in CWD")
+    }
 
     #[tokio::test]
     async fn test_fuzzy_replace_exact() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir_in_cwd();
         let file_path = dir.path().join("test.txt");
         fs::write(&file_path, "hello world\nthis is a test").unwrap();
 
@@ -142,7 +146,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fuzzy_replace_whitespace() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir_in_cwd();
         let file_path = dir.path().join("test.txt");
         fs::write(&file_path, "hello   world\nthis is a test").unwrap();
 
@@ -157,7 +161,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_local_file() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir_in_cwd();
         let file_path = dir.path().join("test.txt");
         fs::write(&file_path, "line 1\nline 2\nline 3\nline 4").unwrap();
 

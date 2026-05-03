@@ -65,23 +65,22 @@ pub fn init_workspace() {
 
     // Create .deep directory if it doesn't exist
     if !deep_dir.exists() {
-        fs::create_dir_all(&deep_dir).expect("Failed to create .deep directory");
-        println!("📁 Created .deep/ workspace directory");
+        let _ = fs::create_dir_all(&deep_dir);
     }
 
     // Create history subdirectory
     let history_dir = deep_dir.join("history");
     if !history_dir.exists() {
-        fs::create_dir_all(&history_dir).expect("Failed to create .deep/history directory");
+        let _ = fs::create_dir_all(&history_dir);
     }
 
     // Create config.json if it doesn't exist
     let config_path = deep_dir.join("config.json");
     if !config_path.exists() {
         let config = Config::default();
-        let json = serde_json::to_string_pretty(&config).expect("Failed to serialize config");
-        fs::write(&config_path, json).expect("Failed to write config.json");
-        println!("📝 Created .deep/config.json with default settings");
+        if let Ok(json) = serde_json::to_string_pretty(&config) {
+            let _ = fs::write(&config_path, json);
+        }
     }
 
     // Create memory.md if it doesn't exist
@@ -102,8 +101,7 @@ that the AI agent should remember across sessions.
 ## Important Context
 - 
 "#;
-        fs::write(&memory_path, default_memory).expect("Failed to write memory.md");
-        println!("📝 Created .deep/memory.md for persistent memory");
+        let _ = fs::write(&memory_path, default_memory);
     }
 }
 
@@ -113,7 +111,6 @@ pub fn load_config() -> Config {
         if let Ok(loaded) = serde_json::from_str::<Config>(&content) {
             return loaded;
         }
-        eprintln!("⚠️  Invalid config.json, using defaults");
     }
 
     // 2. Fallback: Try global ~/.deep/config.json

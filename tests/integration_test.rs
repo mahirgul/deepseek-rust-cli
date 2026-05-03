@@ -3,7 +3,7 @@ use tempfile::TempDir;
 
 #[test]
 fn test_replace_text_in_file() {
-    let dir = TempDir::new().unwrap();
+    let dir = TempDir::new_in(".").expect("Failed to create temp dir in CWD");
     let path = dir.path().join("replace.txt");
     fs::write(&path, "Hello World\nGoodbye").unwrap();
 
@@ -24,7 +24,7 @@ fn test_replace_text_in_file() {
 
 #[test]
 fn test_count_lines() {
-    let dir = TempDir::new().unwrap();
+    let dir = TempDir::new_in(".").expect("Failed to create temp dir in CWD");
     let path = dir.path().join("lines.txt");
     fs::write(&path, "line1\nline2\nline3\n").unwrap();
 
@@ -40,7 +40,7 @@ fn test_count_lines() {
 
 #[test]
 fn test_hash_file() {
-    let dir = TempDir::new().unwrap();
+    let dir = TempDir::new_in(".").expect("Failed to create temp dir in CWD");
     let path = dir.path().join("hash.txt");
     fs::write(&path, "test content").unwrap();
 
@@ -58,7 +58,7 @@ fn test_hash_file() {
 
 #[test]
 fn test_fuzzy_replace() {
-    let dir = TempDir::new().unwrap();
+    let dir = TempDir::new_in(".").expect("Failed to create temp dir in CWD");
     let path = dir.path().join("fuzzy.txt");
     fs::write(&path, "Hello   World\n  Extra spaces  \nEnd").unwrap();
 

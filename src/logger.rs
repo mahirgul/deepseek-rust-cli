@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 pub fn init_logger(debug: bool) {
     let log_dir = PathBuf::from(".deep/logs");

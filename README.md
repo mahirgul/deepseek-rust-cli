@@ -22,6 +22,14 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 - **🧪 High Reliability:** Expanded unit and integration test suite ensures stability across core components.
 - **🔐 Safety-first:** Dangerous commands require user approval; all tools have built-in **execution timeouts**.
 
+## 📖 Documentation
+
+Comprehensive documentation is available in the `docs/` directory and can be viewed as an [mdBook](https://rust-lang.github.io/mdBook/):
+
+- **Architecture:** Core component breakdown and execution flow.
+- **Tools:** Detailed list of available tools and their capabilities.
+- **Contributing:** Guidelines for setting up the development environment.
+
 ## 🚀 Quick Install
 
 ### Linux & macOS

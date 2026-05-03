@@ -18,16 +18,17 @@ pub fn is_dangerous_tool(name: &str, args: &serde_json::Map<String, Value>) -> b
 
         let regexes = DANGEROUS_RE.get_or_init(|| {
             let patterns = [
-                r"\brm\b",
-                r"\bdel\b",
-                r"\brd\b",
-                r"\brmdir\b",
-                r"\berase\b",
-                r"\bdd\b.*\bof=",
-                r"\bmkfs\b",
+                r"(\b|[`$])rm(\b|[`$])",
+                r"(\b|[`$])del(\b|[`$])",
+                r"(\b|[`$])rd(\b|[`$])",
+                r"(\b|[`$])rmdir(\b|[`$])",
+                r"(\b|[`$])erase(\b|[`$])",
+                r"(\b|[`$])dd\b.*\bof=",
+                r"(\b|[`$])mkfs(\b|[`$])",
                 r">\s*/dev/",
-                r"\bchown\b.*-R\b",
-                r"\bchmod\b.*777\b",
+                r"(\b|[`$])chown\b.*-R\b",
+                r"(\b|[`$])chmod\b.*777\b",
+                r"(\b|[`$])shred(\b|[`$])",
             ];
             patterns.iter().map(|p| Regex::new(p).unwrap()).collect()
         });

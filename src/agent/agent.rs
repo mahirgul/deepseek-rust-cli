@@ -37,6 +37,8 @@ pub enum AgentEvent {
 pub struct UndoAction {
     pub r#type: String,
     pub path: String,
+    /// For 'write', 'replace', 'delete': contains file content.
+    /// For 'rename': contains the original source path as bytes.
     pub backup: Option<Vec<u8>>,
 }
 
@@ -370,31 +372,36 @@ impl DeepSeekAgent {
                         })
                         .collect();
 
-                let results = if tool_inputs.len() == 1 {
-                    // Single tool - execute directly for proper undo stack
+                let (results, approved_call_indices) = if tool_inputs.len() == 1 {
+                    // Single tool - execute directly
                     let (name, args) = tool_inputs.into_iter().next().unwrap();
+                    let mut temp_undo = Vec::new();
 
                     // Special handling for 'cd' to keep state
-                    if name == "execute_shell_command"
-                        && let Some(cmd) = args.get("command").and_then(|v| v.as_str())
-                        && let Some(stripped) = cmd.strip_prefix("cd ")
-                    {
-                        let new_dir = stripped.trim().trim_matches('"').trim_matches('\'');
-                        let target_path = self.cwd.join(new_dir);
-                        if target_path.exists()
-                            && target_path.is_dir()
-                            && let Ok(abs_path) = std::fs::canonicalize(target_path)
-                        {
-                            self.cwd = abs_path;
+                    if name == "execute_shell_command" {
+                        if let Some(cmd) = args.get("command").and_then(|v| v.as_str()) {
+                            if let Some(stripped) = cmd.strip_prefix("cd ") {
+                                let new_dir = stripped.trim().trim_matches('"').trim_matches('\'');
+                                let target_path = self.cwd.join(new_dir);
+                                // Validate path to prevent traversal outside workspace
+                                if let Ok(validated) = crate::tools::base::validate_path(
+                                    target_path.to_str().unwrap_or("."),
+                                ) {
+                                    if validated.exists() && validated.is_dir() {
+                                        self.cwd = validated;
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    let result =
-                        execute_tool(&name, &args, &mut self.undo_stack, Some(&self.cwd)).await;
-                    vec![(0, result, Vec::new())]
+                    let result = execute_tool(&name, &args, &mut temp_undo, Some(&self.cwd)).await;
+                    (vec![(0, result, temp_undo)], vec![0])
                 } else {
                     // Multiple tools - execute in parallel
-                    execute_tools_parallel(&tool_inputs, Some(self.cwd.clone())).await
+                    let res = execute_tools_parallel(&tool_inputs, Some(self.cwd.clone())).await;
+                    let indices: Vec<usize> = (0..res.len()).collect();
+                    (res, indices)
                 };
 
                 // Notify end and add tool messages
@@ -402,7 +409,7 @@ impl DeepSeekAgent {
                     // Merge undo actions
                     self.undo_stack.extend(undo_actions);
 
-                    let (_orig_idx, tc) = &approved_calls[idx];
+                    let (_orig_idx, tc) = &approved_calls[approved_call_indices[idx]];
                     let result_str = match result {
                         Ok(res) => res,
                         Err(e) => format!("Error: {}", e),

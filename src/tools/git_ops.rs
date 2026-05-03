@@ -81,18 +81,13 @@ pub async fn git_branch(
 ) -> Result<String> {
     let p = path.unwrap_or(".");
     let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(p).arg("branch");
+    cmd.arg("-C").arg(p);
 
     match action {
         Some("create") => {
             if let Some(n) = name {
-                let output = Command::new("git")
-                    .arg("-C")
-                    .arg(p)
-                    .arg("branch")
-                    .arg(n)
-                    .output()
-                    .await?;
+                cmd.arg("branch").arg(n);
+                let output = cmd.output().await?;
                 if !output.status.success() {
                     return Ok(format!(
                         "Git error: {}",
@@ -104,14 +99,8 @@ pub async fn git_branch(
         }
         Some("delete") => {
             if let Some(n) = name {
-                let output = Command::new("git")
-                    .arg("-C")
-                    .arg(p)
-                    .arg("branch")
-                    .arg("-d")
-                    .arg(n)
-                    .output()
-                    .await?;
+                cmd.arg("branch").arg("-d").arg(n);
+                let output = cmd.output().await?;
                 if !output.status.success() {
                     return Ok(format!(
                         "Git error: {}",
@@ -123,13 +112,8 @@ pub async fn git_branch(
         }
         Some("switch") => {
             if let Some(n) = name {
-                let output = Command::new("git")
-                    .arg("-C")
-                    .arg(p)
-                    .arg("checkout")
-                    .arg(n)
-                    .output()
-                    .await?;
+                cmd.arg("checkout").arg(n);
+                let output = cmd.output().await?;
                 if !output.status.success() {
                     return Ok(format!(
                         "Git error: {}",
@@ -141,7 +125,8 @@ pub async fn git_branch(
         }
         _ => {
             // List branches (default)
-            let output = cmd.arg("--list").output().await?;
+            cmd.arg("branch").arg("--list");
+            let output = cmd.output().await?;
             if !output.status.success() {
                 return Ok(format!(
                     "Git error: {}",

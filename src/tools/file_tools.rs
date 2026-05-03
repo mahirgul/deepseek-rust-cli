@@ -91,20 +91,13 @@ impl Tool for ReplaceTextTool {
             .get("new_text")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'new_text'"))?;
-        let fuzzy = args.get("fuzzy").and_then(|v| v.as_bool()).unwrap_or(true);
         let backup = tokio::fs::read(path).await.ok();
         undo.push(UndoAction {
             r#type: "replace".to_string(),
             path: path.to_string(),
             backup,
         });
-        if fuzzy {
-            tools::file_io::fuzzy_replace_in_file(path, old, new).await
-        } else {
-            tools::file_io::replace_text_in_file(path, old, new)
-                .await
-                .map(|_| "Text replaced.".to_string())
-        }
+        tools::file_io::fuzzy_replace_in_file(path, old, new).await
     }
 }
 

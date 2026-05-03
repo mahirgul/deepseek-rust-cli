@@ -46,7 +46,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 - `src/agent/`: Core logic, command processing, and history.
 - `src/api/`: DeepSeek API client and streaming implementation.
 - `src/tools/`: The trait-based tool registry and all built-in tools.
-- `src/tui/`: Ratatui-based terminal user interface.
+- `src/tui/`: Custom Crossterm-based terminal user interface.
 
 ## 📜 License
 
