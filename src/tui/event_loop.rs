@@ -12,8 +12,7 @@ use ratatui::{
     style::{Color, Style},
     text::{Line, Span, Text},
     widgets::{
-        Block, Borders, ListState, Paragraph, Scrollbar, ScrollbarOrientation,
-        ScrollbarState, Wrap,
+        Block, Borders, ListState, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
     },
 };
 use std::io;
@@ -193,7 +192,11 @@ impl EventLoop {
                             KeyCode::Enter if !app.input.is_empty() => {
                                 let cmd = app.input.clone();
                                 app.push_message(format!("> {}", cmd));
-                                if cmd == "exit" || cmd == "quit" || cmd == "/exit" || cmd == "/quit" {
+                                if cmd == "exit"
+                                    || cmd == "quit"
+                                    || cmd == "/exit"
+                                    || cmd == "/quit"
+                                {
                                     break;
                                 }
                                 let _ = self.cmd_tx.send(cmd).await;
@@ -217,62 +220,56 @@ impl EventLoop {
                         }
                     }
                 }
-                TuiEvent::Agent(agent_event) => {
-                    match agent_event {
-                        AgentEvent::Reasoning { content: _ } => {
-                            app.start_task("Reasoning".to_string());
-                        }
-                        AgentEvent::Content { content } => {
-                            app.start_task("Generating".to_string());
-                            content_buffer.push_str(&content);
-                            full_message.push_str(&content);
-                            if content.contains('\n') {
-                                app.push_message(content_buffer.clone());
-                                content_buffer.clear();
-                            }
-                        }
-                        AgentEvent::ToolStart { name, args } => {
-                            app.start_task(format!("Tool: {}", name));
-                            if !content_buffer.is_empty() {
-                                app.push_message(content_buffer.clone());
-                                content_buffer.clear();
-                            }
-                            app.push_message(format!(
-                                "🔧 Executing tool: {} (args: {})",
-                                name, args
-                            ));
-                        }
-                        AgentEvent::ToolEnd { name } => {
-                            app.push_message(format!("✅ {} executed.", name));
-                        }
-                        AgentEvent::ApprovalRequest { name, args } => {
-                            app.start_task("Awaiting Approval".to_string());
-                            app.awaiting_approval = true;
-                            app.push_message(format!("⚠️ Approval Required for tool: {}", name));
-                            app.push_message(format!("Arguments: {}", args));
-                            app.push_message(
-                                "? Press 'y' to approve, 'n' to reject, 'a' to allow all."
-                                    .to_string(),
-                            );
-                        }
-                        AgentEvent::Error { content } => {
-                            app.finish_task();
-                            app.push_message(format!("❌ Error: {}", content));
-                        }
-                        AgentEvent::Done => {
-                            app.finish_task();
-                            if !content_buffer.is_empty() {
-                                app.push_message(content_buffer.clone());
-                                content_buffer.clear();
-                            }
-                            app.push_message("✅ Operation Complete".to_string());
-                        }
-                        AgentEvent::Aborted => {
-                            app.finish_task();
-                            app.push_message("🛑 Operation aborted by user.".to_string());
+                TuiEvent::Agent(agent_event) => match agent_event {
+                    AgentEvent::Reasoning { content: _ } => {
+                        app.start_task("Reasoning".to_string());
+                    }
+                    AgentEvent::Content { content } => {
+                        app.start_task("Generating".to_string());
+                        content_buffer.push_str(&content);
+                        full_message.push_str(&content);
+                        if content.contains('\n') {
+                            app.push_message(content_buffer.clone());
+                            content_buffer.clear();
                         }
                     }
-                }
+                    AgentEvent::ToolStart { name, args } => {
+                        app.start_task(format!("Tool: {}", name));
+                        if !content_buffer.is_empty() {
+                            app.push_message(content_buffer.clone());
+                            content_buffer.clear();
+                        }
+                        app.push_message(format!("🔧 Executing tool: {} (args: {})", name, args));
+                    }
+                    AgentEvent::ToolEnd { name } => {
+                        app.push_message(format!("✅ {} executed.", name));
+                    }
+                    AgentEvent::ApprovalRequest { name, args } => {
+                        app.start_task("Awaiting Approval".to_string());
+                        app.awaiting_approval = true;
+                        app.push_message(format!("⚠️ Approval Required for tool: {}", name));
+                        app.push_message(format!("Arguments: {}", args));
+                        app.push_message(
+                            "? Press 'y' to approve, 'n' to reject, 'a' to allow all.".to_string(),
+                        );
+                    }
+                    AgentEvent::Error { content } => {
+                        app.finish_task();
+                        app.push_message(format!("❌ Error: {}", content));
+                    }
+                    AgentEvent::Done => {
+                        app.finish_task();
+                        if !content_buffer.is_empty() {
+                            app.push_message(content_buffer.clone());
+                            content_buffer.clear();
+                        }
+                        app.push_message("✅ Operation Complete".to_string());
+                    }
+                    AgentEvent::Aborted => {
+                        app.finish_task();
+                        app.push_message("🛑 Operation aborted by user.".to_string());
+                    }
+                },
                 TuiEvent::Tick => {
                     app.tick();
                 }

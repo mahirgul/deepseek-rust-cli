@@ -56,7 +56,8 @@ async fn main() -> Result<()> {
                 .unwrap_or(Duration::from_secs(0));
 
             if event::poll(timeout).unwrap_or(false)
-                && let Event::Key(key) = event::read().unwrap() {
+                && let Event::Key(key) = event::read().unwrap()
+            {
                 let _ = tui_tx_for_input.send(TuiEvent::Input(key)).await;
             }
             if last_tick.elapsed() >= tick_rate {
