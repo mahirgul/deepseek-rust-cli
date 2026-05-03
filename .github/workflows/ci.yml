@@ -34,6 +34,12 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install Tools
+        if: matrix.cmd == 'audit'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
       - name: Rust Cache (sccache)
         uses: mozilla-actions/sccache-action@v0.0.6
 
@@ -50,7 +56,6 @@ jobs:
               cargo clippy --workspace --all-targets -- -D warnings
               ;;
             audit)
-              cargo install cargo-audit
               cargo audit
               ;;
           esac
@@ -100,8 +105,21 @@ jobs:
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
-        run: cargo test --target ${{ matrix.platform.target }} --verbose
+        run: |
+          # Only run tests if we are on a compatible host
+          if [[ "${{ matrix.platform.runs-on }}" == "ubuntu-latest" && "${{ matrix.platform.target }}" == *"linux"* ]] || \
+             [[ "${{ matrix.platform.runs-on }}" == "windows-latest" && "${{ matrix.platform.target }}" == *"windows"* ]] || \
+             [[ "${{ matrix.platform.runs-on }}" == "macos-latest" && "${{ matrix.platform.target }}" == *"apple-darwin"* ]]; then
+            cargo test --target ${{ matrix.platform.target }} --verbose
+          else
+            echo "Skipping tests for ${{ matrix.platform.target }} on ${{ matrix.platform.runs-on }}"
+          fi
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
 
       - name: Check License
-        run: cargo install cargo-deny && cargo deny check licenses || true
+        run: cargo deny check licenses
         continue-on-error: true
