@@ -1,23 +1,45 @@
 use crate::api::types::{ChatRequest, Message, Tool};
 use anyhow::Result;
 use reqwest::{Client, Response};
+use std::sync::Arc;
 use std::time::Duration;
 
+/// High-performance HTTP client with connection pooling, HTTP/2, and retry logic.
 pub struct DeepSeekClient {
     client: Client,
-    api_key: String,
-    base_url: String,
+    api_key: Arc<str>,
+    base_url: Arc<str>,
 }
 
 impl DeepSeekClient {
     pub fn new(api_key: String, base_url: String, timeout_secs: u64) -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(timeout_secs))
+            // Connection pooling — reuse connections for multiple requests
+            .pool_idle_timeout(Some(Duration::from_secs(90)))
+            .pool_max_idle_per_host(4)
+            // TCP keep-alive for persistent connections
+            .tcp_keepalive(Some(Duration::from_secs(60)))
+            // Enable HTTP/2 for multiplexed streaming
+            .http2_prior_knowledge()
+            // Auto-decompress responses
+            .gzip(true)
+            .brotli(true)
+            .zstd(true)
+            // Connection timeout
+            .connect_timeout(Duration::from_secs(10))
+            // User agent
+            .user_agent(concat!(
+                "deepseek-rust-cli/",
+                env!("CARGO_PKG_VERSION")
+            ))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+
         Self {
-            client: Client::builder()
-                .timeout(Duration::from_secs(timeout_secs))
-                .build()
-                .unwrap_or_else(|_| Client::new()),
-            api_key,
-            base_url,
+            client,
+            api_key: Arc::from(api_key),
+            base_url: Arc::from(base_url),
         }
     }
 
@@ -43,6 +65,7 @@ impl DeepSeekClient {
         };
 
         let mut last_err = None;
+        // Exponential backoff: 500ms, 1s, 2s
         for attempt in 0..3 {
             if attempt > 0 {
                 tokio::time::sleep(Duration::from_millis(500 * (1 << attempt))).await;
@@ -51,7 +74,7 @@ impl DeepSeekClient {
             let response_res = self
                 .client
                 .post(&url)
-                .bearer_auth(&self.api_key)
+                .bearer_auth(self.api_key.as_ref())
                 .json(&request)
                 .send()
                 .await;

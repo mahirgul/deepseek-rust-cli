@@ -1,5 +1,5 @@
 use crate::agent::context::get_project_context;
-use crate::agent::executor::{execute_tool, execute_tools_parallel};
+use crate::agent::executor::{execute_tool_cached, execute_tools_parallel, ToolCache};
 use crate::agent::history::{load_history, save_history};
 use crate::api::client::DeepSeekClient;
 use crate::api::streaming::StreamParser;
@@ -9,6 +9,7 @@ use crate::tools::schemas::get_tools_schemas;
 use anyhow::Result;
 use colored::Colorize;
 use futures::StreamExt;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -23,14 +24,34 @@ pub enum ApprovalResult {
 
 #[derive(Debug, Clone)]
 pub enum AgentEvent {
-    Reasoning { content: String },
-    Content { content: String },
-    ToolStart { name: String, args: String },
-    ToolEnd { name: String },
-    Error { content: String },
-    ApprovalRequest { name: String, args: String },
-    Done,
-    Aborted,
+    Reasoning {
+        content: String,
+    },
+    Content {
+        content: String,
+    },
+    ToolStart {
+        name: String,
+        args: String,
+    },
+    ToolEnd {
+        name: String,
+        /// Truncated result output for display (colorized by TUI)
+        result: Option<String>,
+    },
+    Error {
+        content: String,
+    },
+    ApprovalRequest {
+        name: String,
+        args: String,
+    },
+    Done {
+        token_usage: TokenUsage,
+    },
+    Aborted {
+        token_usage: TokenUsage,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +65,8 @@ pub struct UndoAction {
 
 pub struct DeepSeekAgent {
     pub client: Arc<DeepSeekClient>,
+    /// Tool result cache to avoid redundant operations
+    pub tool_cache: ToolCache,
     pub model: String,
     pub session_id: String,
     pub messages: Vec<Message>,
@@ -51,7 +74,8 @@ pub struct DeepSeekAgent {
     pub token_usage: TokenUsage,
     pub undo_stack: Vec<UndoAction>,
     pub auto_approve: bool,
-    pub cancel_token: CancellationToken,
+    /// Shared cancel token — can be cancelled from outside the agent mutex
+    pub cancel_token: Arc<std::sync::Mutex<CancellationToken>>,
     pub cwd: std::path::PathBuf,
 }
 
@@ -90,19 +114,46 @@ impl DeepSeekAgent {
             token_usage: TokenUsage::default(),
             undo_stack: Vec::new(),
             auto_approve: false,
-            cancel_token: CancellationToken::new(),
+            cancel_token: Arc::new(std::sync::Mutex::new(CancellationToken::new())),
             cwd: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            tool_cache: HashMap::new(),
         }
     }
 
     /// Reset the cancellation token for a new request
     pub fn reset_cancel(&mut self) {
-        self.cancel_token = CancellationToken::new();
+        let mut token = self.cancel_token.lock().unwrap();
+        *token = CancellationToken::new();
     }
 
     /// Abort the current streaming request
     pub fn abort(&self) {
-        self.cancel_token.cancel();
+        self.cancel_token.lock().unwrap().cancel();
+    }
+
+    /// Check if cancelled (lock-free clone for use in hot loops)
+    fn is_cancelled(&self) -> bool {
+        self.cancel_token.lock().unwrap().is_cancelled()
+    }
+
+    /// Remove incomplete tool-call chain from messages after an abort.
+    /// The API requires every `tool` message be preceded by an assistant
+    /// message with matching `tool_calls`. After abort mid-execution,
+    /// we may have orphaned tool results or an unfulfilled tool_calls.
+    fn cleanup_aborted_messages(&mut self) {
+        // Strip trailing `tool` messages (orphaned results)
+        while self.messages.last().is_some_and(|m| m.role == "tool") {
+            self.messages.pop();
+        }
+        // If the last message is an assistant with tool_calls, remove it too
+        // (it has no matching tool responses, or only partial ones)
+        if self
+            .messages
+            .last()
+            .is_some_and(|m| m.role == "assistant" && m.tool_calls.is_some())
+        {
+            self.messages.pop();
+        }
     }
 
     pub async fn chat_stream(
@@ -113,14 +164,21 @@ impl DeepSeekAgent {
     ) -> Result<()> {
         self.manage_context();
         self.reset_cancel();
+        // Clear tool cache each request
+        self.tool_cache.clear();
         let res = self
             .chat_stream_inner(user_input, tx.clone(), approval_rx)
             .await;
         self.save();
 
         // If cancelled, send aborted event
-        if self.cancel_token.is_cancelled() {
-            let _ = tx.send(AgentEvent::Aborted).await;
+        if self.is_cancelled() {
+            self.cleanup_aborted_messages();
+            let _ = tx
+                .send(AgentEvent::Aborted {
+                    token_usage: self.token_usage.clone(),
+                })
+                .await;
         }
 
         res
@@ -145,7 +203,7 @@ impl DeepSeekAgent {
         let mut iteration = 0;
         while iteration < self.config.max_iterations {
             // Check for cancellation
-            if self.cancel_token.is_cancelled() {
+            if self.is_cancelled() {
                 break;
             }
 
@@ -190,7 +248,7 @@ impl DeepSeekAgent {
 
             while let Some(item) = stream.next().await {
                 // Check cancellation during streaming
-                if self.cancel_token.is_cancelled() {
+                if self.is_cancelled() {
                     break;
                 }
 
@@ -263,7 +321,7 @@ impl DeepSeekAgent {
             }
 
             // If cancelled, stop processing
-            if self.cancel_token.is_cancelled() {
+            if self.is_cancelled() {
                 break;
             }
 
@@ -373,7 +431,7 @@ impl DeepSeekAgent {
                         .collect();
 
                 let (results, approved_call_indices) = if tool_inputs.len() == 1 {
-                    // Single tool - execute directly
+                    // Single tool - execute directly with cache
                     let (name, args) = tool_inputs.into_iter().next().unwrap();
                     let mut temp_undo = Vec::new();
 
@@ -383,7 +441,6 @@ impl DeepSeekAgent {
                             if let Some(stripped) = cmd.strip_prefix("cd ") {
                                 let new_dir = stripped.trim().trim_matches('"').trim_matches('\'');
                                 let target_path = self.cwd.join(new_dir);
-                                // Validate path to prevent traversal outside workspace
                                 if let Ok(validated) = crate::tools::base::validate_path(
                                     target_path.to_str().unwrap_or("."),
                                 ) {
@@ -395,7 +452,14 @@ impl DeepSeekAgent {
                         }
                     }
 
-                    let result = execute_tool(&name, &args, &mut temp_undo, Some(&self.cwd)).await;
+                    let (result, _cached) = execute_tool_cached(
+                        &name,
+                        &args,
+                        &mut temp_undo,
+                        &mut self.tool_cache,
+                        Some(&self.cwd),
+                    )
+                    .await;
                     (vec![(0, result, temp_undo)], vec![0])
                 } else {
                     // Multiple tools - execute in parallel
@@ -415,14 +479,27 @@ impl DeepSeekAgent {
                         Err(e) => format!("Error: {}", e),
                     };
 
+                    // Truncate result for TUI display (max ~500 chars)
+                    let display_result = Some(if result_str.len() > 500 {
+                        let trunc: String = result_str.chars().take(500).collect();
+                        format!(
+                            "{}\n... (truncated, {} total chars)",
+                            trunc,
+                            result_str.len()
+                        )
+                    } else {
+                        result_str.clone()
+                    });
+
                     let _ = tx
                         .send(AgentEvent::ToolEnd {
                             name: tc.function.name.clone(),
+                            result: display_result,
                         })
                         .await;
 
                     // Check cancellation
-                    if self.cancel_token.is_cancelled() {
+                    if self.is_cancelled() {
                         break;
                     }
 
@@ -441,6 +518,7 @@ impl DeepSeekAgent {
                 let _ = tx
                     .send(AgentEvent::ToolEnd {
                         name: "denied".to_string(),
+                        result: Some(msg.clone()),
                     })
                     .await;
                 self.messages.push(Message {
@@ -453,14 +531,12 @@ impl DeepSeekAgent {
             }
 
             // Check cancellation after tool execution
-            if self.cancel_token.is_cancelled() {
+            if self.is_cancelled() {
                 break;
             }
         }
 
-        if !self.cancel_token.is_cancelled() {
-            let _ = tx.send(AgentEvent::Done).await;
-        }
+        // Note: AgentEvent::Done is sent by the caller (main.rs) after chat_stream returns
 
         if self.config.show_token_usage {
             let total = self.token_usage.prompt_tokens + self.token_usage.completion_tokens;

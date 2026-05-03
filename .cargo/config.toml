@@ -1,0 +1,26 @@
+# ─── DeepSeek Rust CLI - Cargo Configuration ──────────────────
+# Compiler optimizations for faster builds across platforms
+#
+# Optional speedups (install tools to enable):
+#   cargo install sccache          # 2-3x CI speedup (set RUSTC_WRAPPER=sccache)
+#   sudo apt install mold          # 5-10x faster linking on Linux
+#   brew install llvm              # lld linker on macOS
+
+[build]
+incremental = true
+
+# ─── Profile Overrides ───────────────────────────────────────
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 0
+incremental = true
+
+[profile.test]
+opt-level = 1
+incremental = true

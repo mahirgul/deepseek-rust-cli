@@ -39,12 +39,12 @@ impl Default for Config {
         Self {
             model: "deepseek-v4-pro".to_string(), // Reverting to deepseek-v4-pro as requested by user
             base_url: "https://api.deepseek.com".to_string(),
-            request_timeout: 6000,
+            request_timeout: 6000, // 100 minutes
             temperature: 0.0,
             top_p: 1.0,
             presence_penalty: 0.0,
             frequency_penalty: 0.0,
-            max_tokens: 200000,
+            max_tokens: 393_216, // API max
             max_iterations: 500,
             show_token_usage: true,
             concise_reasoning: true,

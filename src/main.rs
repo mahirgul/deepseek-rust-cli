@@ -1,15 +1,15 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use crossterm::event::{self, Event};
 use crossterm::{cursor, execute, terminal};
 use deepseek_rust_cli::agent::agent::{AgentEvent, DeepSeekAgent};
 use deepseek_rust_cli::agent::commands::process_command;
 use deepseek_rust_cli::agent::mentions::process_mentions;
-use deepseek_rust_cli::cli::Args;
+use deepseek_rust_cli::cli::{Args, ShellType};
 use deepseek_rust_cli::config::{get_api_key, init_workspace, load_config};
 use deepseek_rust_cli::logger::init_logger;
 use deepseek_rust_cli::tui::event_loop::{EventLoop, TuiEvent};
-use std::io;
+use std::io::{self};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -18,6 +18,34 @@ use tokio::sync::Mutex;
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+
+    // Handle --generate-completion early (no TUI needed)
+    if let Some(shell) = &args.generate_completion {
+        let mut cmd = Args::command();
+        let name = cmd.get_name().to_string();
+        let mut stdout = io::stdout();
+        match shell {
+            ShellType::Bash => {
+                clap_complete::generate(clap_complete::shells::Bash, &mut cmd, name, &mut stdout)
+            }
+            ShellType::Zsh => {
+                clap_complete::generate(clap_complete::shells::Zsh, &mut cmd, name, &mut stdout)
+            }
+            ShellType::Fish => {
+                clap_complete::generate(clap_complete::shells::Fish, &mut cmd, name, &mut stdout)
+            }
+            ShellType::PowerShell => clap_complete::generate(
+                clap_complete::shells::PowerShell,
+                &mut cmd,
+                name,
+                &mut stdout,
+            ),
+            ShellType::Elvish => {
+                clap_complete::generate(clap_complete::shells::Elvish, &mut cmd, name, &mut stdout)
+            }
+        }
+        return Ok(());
+    }
 
     let mut stdout = io::stdout();
     execute!(
@@ -61,6 +89,9 @@ async fn main() -> Result<()> {
                     Event::Mouse(mouse) => {
                         let _ = tui_tx_for_input.send(TuiEvent::Mouse(mouse)).await;
                     }
+                    Event::Paste(text) => {
+                        let _ = tui_tx_for_input.send(TuiEvent::Paste(text)).await;
+                    }
                     _ => {}
                 }
             }
@@ -92,22 +123,28 @@ async fn main() -> Result<()> {
             if cmd.starts_with('/') {
                 match process_command(&mut agent_lock, &cmd).await {
                     Ok(Some(response)) => {
+                        let tu = agent_lock.token_usage.clone();
                         let _ = agent_event_tx
                             .send(AgentEvent::Content { content: response })
                             .await;
-                        let _ = agent_event_tx.send(AgentEvent::Done).await;
+                        let _ = agent_event_tx
+                            .send(AgentEvent::Done { token_usage: tu })
+                            .await;
                         continue;
                     }
                     Ok(None) => {
                         // Not a recognized command, proceed to chat
                     }
                     Err(e) => {
+                        let tu = agent_lock.token_usage.clone();
                         let _ = agent_event_tx
                             .send(AgentEvent::Error {
                                 content: format!("Command error: {}", e),
                             })
                             .await;
-                        let _ = agent_event_tx.send(AgentEvent::Done).await;
+                        let _ = agent_event_tx
+                            .send(AgentEvent::Done { token_usage: tu })
+                            .await;
                         continue;
                     }
                 }
@@ -117,7 +154,13 @@ async fn main() -> Result<()> {
             let _ = agent_lock
                 .chat_stream(processed_cmd, agent_event_tx.clone(), &mut app_rx)
                 .await;
-            let _ = agent_event_tx.send(AgentEvent::Done).await;
+            // Only send Done if not aborted (Aborted event already sent by chat_stream)
+            if !agent_lock.cancel_token.lock().unwrap().is_cancelled() {
+                let tu = agent_lock.token_usage.clone();
+                let _ = agent_event_tx
+                    .send(AgentEvent::Done { token_usage: tu })
+                    .await;
+            }
             agent_lock.reset_cancel();
         }
     });

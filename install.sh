@@ -1,37 +1,189 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+
+# ─── DeepSeek Rust CLI - Linux/macOS Installer ─────────────────
+# Usage: curl -fsSL <url> | bash
+# Or:    bash install.sh
 
 REPO="mahirgul/deepseek-rust-cli"
-OS_TYPE=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
+BIN_NAME="deepseek-rust-cli"
+INSTALL_DIR="/usr/local/bin"
 
-if [ "$OS_TYPE" == "linux" ]; then
-    PLATFORM="linux-x86_64"
-elif [ "$OS_TYPE" == "darwin" ]; then
-    if [ "$ARCH" == "arm64" ]; then
-        PLATFORM="macos-aarch64"
-    else
-        PLATFORM="macos-x86_64"
+# ─── Color Output ──────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+info()    { echo -e "${CYAN}[INFO]${NC}  $*"; }
+success() { echo -e "${GREEN}[OK]${NC}    $*"; }
+warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+error()   { echo -e "${RED}[ERROR]${NC} $*"; }
+
+# ─── Detect Platform ───────────────────────────────────────
+detect_platform() {
+    local os arch platform
+
+    os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    arch=$(uname -m)
+
+    case "$os" in
+        linux)
+            case "$arch" in
+                x86_64|amd64)   platform="linux-x86_64" ;;
+                aarch64|arm64)  platform="linux-aarch64" ;;
+                *)              error "Unsupported architecture: $arch"; exit 1 ;;
+            esac
+            ;;
+        darwin)
+            case "$arch" in
+                x86_64|amd64)   platform="macos-x86_64" ;;
+                arm64|aarch64)  platform="macos-aarch64" ;;
+                *)              error "Unsupported architecture: $arch"; exit 1 ;;
+            esac
+            ;;
+        *)
+            error "Unsupported OS: $os"
+            info "Windows users: run install.ps1 in PowerShell"
+            exit 1
+            ;;
+    esac
+
+    echo "$platform"
+}
+
+# ─── Check Dependencies ────────────────────────────────────
+check_deps() {
+    local missing=()
+
+    if ! command -v curl &>/dev/null && ! command -v wget &>/dev/null; then
+        missing+=("curl or wget")
     fi
-else
-    echo "Unsupported OS: $OS_TYPE"
-    exit 1
-fi
+    if ! command -v tar &>/dev/null; then
+        missing+=("tar")
+    fi
 
-LATEST_RELEASE=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    if [ ${#missing[@]} -gt 0 ]; then
+        error "Missing required tools: ${missing[*]}"
+        info "Install them first:"
+        info "  Ubuntu/Debian: sudo apt install ${missing[*]}"
+        info "  Fedora:        sudo dnf install ${missing[*]}"
+        info "  macOS:         brew install ${missing[*]}"
+        exit 1
+    fi
+}
 
-if [ -z "$LATEST_RELEASE" ]; then
-    echo "Could not find latest release for $REPO"
-    exit 1
-fi
+# ─── Download ─────────────────────────────────────────────
+download() {
+    local url="$1" dest="$2"
+    if command -v curl &>/dev/null; then
+        curl -fsSL --retry 3 --retry-delay 2 -o "$dest" "$url"
+    else
+        wget -q --tries=3 --wait=2 -O "$dest" "$url"
+    fi
+}
 
-URL="https://github.com/$REPO/releases/download/$LATEST_RELEASE/deepseek-rust-cli-$PLATFORM.tar.gz"
+# ─── Verify Checksum ──────────────────────────────────────
+verify_checksum() {
+    local file="$1" expected_sha="$2"
+    local actual_sha
 
-echo "Downloading DeepSeek Rust CLI $LATEST_RELEASE for $PLATFORM..."
-curl -L "$URL" -o deepseek-rust-cli.tar.gz
+    if command -v sha256sum &>/dev/null; then
+        actual_sha=$(sha256sum "$file" | cut -d' ' -f1)
+    elif command -v shasum &>/dev/null; then
+        actual_sha=$(shasum -a 256 "$file" | cut -d' ' -f1)
+    else
+        warn "No sha256 tool found, skipping checksum verification"
+        return 0
+    fi
 
-tar -xzf deepseek-rust-cli.tar.gz
-sudo mv deepseek-rust-cli /usr/local/bin/
+    if [ "$actual_sha" != "$expected_sha" ]; then
+        error "Checksum verification FAILED!"
+        error "  Expected: $expected_sha"
+        error "  Got:      $actual_sha"
+        exit 1
+    fi
+    success "Checksum verified"
+}
 
-rm deepseek-rust-cli.tar.gz
-echo "Successfully installed deepseek-rust-cli to /usr/local/bin/"
+# ─── Main ──────────────────────────────────────────────────
+main() {
+    echo ""
+    echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║   DeepSeek Rust CLI - Installer              ║${NC}"
+    echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    check_deps
+
+    local platform
+    platform=$(detect_platform)
+    info "Detected platform: ${BOLD}$platform${NC}"
+
+    # Get latest release
+    info "Fetching latest release..."
+    local latest_tag
+    latest_tag=$(download "https://api.github.com/repos/$REPO/releases/latest" - 2>/dev/null | \
+        grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+    if [ -z "$latest_tag" ]; then
+        error "Could not find latest release for $REPO"
+        exit 1
+    fi
+    info "Latest version: ${BOLD}$latest_tag${NC}"
+
+    # Download URLs
+    local archive_name="$BIN_NAME-$platform.tar.gz"
+    local download_url="https://github.com/$REPO/releases/download/$latest_tag/$archive_name"
+    local checksum_url="${download_url}.sha256"
+
+    # Create temp dir
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' EXIT
+
+    # Download archive
+    info "Downloading $archive_name..."
+    download "$download_url" "$tmpdir/$archive_name"
+
+    # Download and verify checksum
+    local expected_sha
+    if expected_sha=$(download "$checksum_url" - 2>/dev/null | cut -d' ' -f1); then
+        if [ -n "$expected_sha" ]; then
+            verify_checksum "$tmpdir/$archive_name" "$expected_sha"
+        fi
+    else
+        warn "Could not download checksum, skipping verification"
+    fi
+
+    # Extract
+    info "Extracting..."
+    tar -xzf "$tmpdir/$archive_name" -C "$tmpdir"
+
+    # Install
+    if [ -w "$INSTALL_DIR" ] || [ "$INSTALL_DIR" = "$HOME/.local/bin" ]; then
+        cp "$tmpdir/$BIN_NAME" "$INSTALL_DIR/"
+    else
+        info "Need sudo to install to $INSTALL_DIR"
+        sudo cp "$tmpdir/$BIN_NAME" "$INSTALL_DIR/"
+        sudo chmod +x "$INSTALL_DIR/$BIN_NAME"
+    fi
+
+    # Verify installation
+    if command -v "$BIN_NAME" &>/dev/null; then
+        success "Successfully installed ${BOLD}$BIN_NAME${NC} to ${BOLD}$INSTALL_DIR${NC}"
+        echo ""
+        info "Run '${BOLD}deepseek-rust-cli${NC}' to start"
+        info "Make sure to set ${BOLD}DEEPSEEK_API_KEY${NC} in ~/.deep/.env"
+    else
+        warn "Binary installed but not in PATH."
+        info "Add this to your shell config:"
+        info "  export PATH=\"$INSTALL_DIR:\$PATH\""
+    fi
+
+    echo ""
+}
+
+main

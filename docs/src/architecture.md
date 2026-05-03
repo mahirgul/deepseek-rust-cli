@@ -9,8 +9,12 @@ The brain of the system. It handles the conversation loop, context management, a
 
 ### 2. TUI Layer (`src/tui/`)
 Powered by `crossterm`. It provides a split-view interface with:
-- **Output Area:** Real-time log of events, tool outputs, and agent thoughts.
-- **Input Area:** Interactive prompt with slash command support and spinner/timer.
+- **Output Area:** Real-time log of events, tool outputs, and agent thoughts with syntax highlighting via `StreamColorizer`.
+- **Input Area:** 4-line dynamic footer including:
+  - **Status:** Spinner, task timer, and model info.
+  - **Context:** Current directory and real-time token usage.
+  - **Command Bar:** Interactive prompt with full cursor support.
+  - **Task Queue:** Horizontal visualization of queued and active commands.
 
 ### 3. API Client (`src/api/`)
 A custom streaming client for the DeepSeek API, supporting both regular and reasoning (thought) content.

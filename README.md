@@ -13,14 +13,14 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 - **🧠 Advanced Reasoning:** Real-time display of the model's thinking process (DeepSeek Reasoning).
 - **🛠️ Extensible Toolset:** 34+ tools managed by a trait-based registry system for reliable and fast execution.
 - **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands update the agent's environment state.
-- **🎨 Visual Feedback:** Dynamic **Spinners with Timers**, Syntax Highlighting for code blocks, and interactive progress bars.
-- **⌨️ TUI Enhancements:** **Interactive Tool Approvals** (y/n/a), Automatic **Word Wrap**, and real-time operation counters.
-- **🛑 Stream Control:** Abort ongoing streaming responses instantly with **Esc** (cancel task) or **Ctrl+C** (exit).
-- **🔄 Auto-Update:** Background version checking with a one-command update system (`/update`).
-- **✏️ Surgical Editing:** **Fuzzy Text Replacement** that handles formatting differences for safer file modifications.
-- **🐙 GitHub Integration:** Full lifecycle management (Issues, PRs, Search, Workflows) via GitHub API.
-- **🧪 High Reliability:** Expanded unit and integration test suite ensures stability across core components.
-- **🔐 Safety-first:** Dangerous commands require user approval; all tools have built-in **execution timeouts**.
+- **🎨 Rich TUI Engine:** 
+  - **4-Line Dynamic Footer:** Real-time status, folder info, token usage, and command queue.
+  - **Horizontal Queue:** Visualize pending and executing tasks at a glance.
+  - **Syntax Highlighting:** Instant coloring for tool results (JSON, Rust, Python, etc.) and streaming code blocks.
+- **⌨️ Advanced Input:** Full cursor control (Home, End, Left, Right), Bracketed Paste support, and persistent history.
+- **🛑 Robust Control:** Instant abort via **Esc** with automatic message cleanup to keep conversation context valid.
+- **🔄 Optimized CI/CD:** Parallelized matrix builds with **mold** linker and **sccache** for lightning-fast automation.
+- **🔐 Security:** Mandatory tool approvals and strict path validation to prevent unauthorized operations.
 
 ## 📖 Documentation
 

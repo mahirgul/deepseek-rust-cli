@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -18,4 +18,19 @@ pub struct Args {
     /// Auto-approve all tools
     #[arg(short, long)]
     pub auto_approve: bool,
+
+    /// Generate shell completions
+    #[arg(long, value_enum)]
+    pub generate_completion: Option<ShellType>,
+}
+
+#[derive(ValueEnum, Debug, Clone)]
+pub enum ShellType {
+    Bash,
+    Zsh,
+    Fish,
+    #[clap(name = "powershell")]
+    PowerShell,
+    #[clap(name = "elvish")]
+    Elvish,
 }

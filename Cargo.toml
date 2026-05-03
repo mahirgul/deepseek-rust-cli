@@ -1,6 +1,6 @@
 [package]
 name = "deepseek-rust-cli"
-version = "1.10.0"
+version = "1.11.0"
 edition = "2021"
 authors = ["Mahir Gul <mahirgul@gmail.com>"]
 description = "A lightweight, high-speed autonomous CLI system agent port of DeepSeek CLI."
@@ -13,6 +13,7 @@ categories = ["command-line-utilities", "development-tools"]
 [dependencies]
 # CLI & UI
 clap = { version = "4.6", features = ["derive"] }
+clap_complete = "4.5"
 crossterm = "0.28"
 colored = "3.1"
 
@@ -21,7 +22,7 @@ tokio = { version = "1.36", features = ["full"] }
 futures = "0.3"
 
 # HTTP Client
-reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "http2", "gzip", "brotli", "zstd"], default-features = false }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -53,6 +54,9 @@ dotenvy = "0.15"
 anyhow = "1.0"
 thiserror = "1.0"
 dirs = "5.0"
+rayon = "1.10"
+dashmap = "6.0"
+arc-swap = "1.7"
 
 
 # Base64

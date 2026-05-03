@@ -6,10 +6,25 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
-    name: Check & Test
+  # ─── Fast Check (Linux only, runs first) ────────────────────
+  quick-check:
+    name: Quick - ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Format
+            cmd: fmt
+          - name: Clippy
+            cmd: clippy
+          - name: Audit
+            cmd: audit
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,17 +34,74 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      - name: Rust Cache (sccache)
+        uses: mozilla-actions/sccache-action@v0.0.6
 
-      - name: Build
-        run: cargo build --verbose
+      - name: Run ${{ matrix.name }}
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: |
+          case "${{ matrix.cmd }}" in
+            fmt)
+              cargo fmt --all -- --check
+              ;;
+            clippy)
+              cargo clippy --workspace --all-targets -- -D warnings
+              ;;
+            audit)
+              cargo install cargo-audit
+              cargo audit
+              ;;
+          esac
+
+  # ─── Full Build & Test Matrix ───────────────────────────────
+  build-test:
+    name: Build & Test - ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.runs-on }}
+    needs: quick-check
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Linux
+            runs-on: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - name: Windows
+            runs-on: windows-latest
+            target: x86_64-pc-windows-msvc
+          - name: macOS
+            runs-on: macos-latest
+            target: x86_64-apple-darwin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Install mold (Linux)
+        if: runner.os == 'Linux'
+        uses: rui314/setup-mold@v1
+
+      - name: Rust Cache (sccache)
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - name: Build (Release)
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: cargo build --release --target ${{ matrix.platform.target }} --verbose
 
       - name: Run Tests
-        run: cargo test --verbose
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: cargo test --target ${{ matrix.platform.target }} --verbose
 
-      - name: Format Check
-        run: cargo fmt -- --check
-
-      - name: Clippy
-        run: cargo clippy -- -D warnings
+      - name: Check License
+        run: cargo install cargo-deny && cargo deny check licenses || true
+        continue-on-error: true
