@@ -3,7 +3,8 @@ use clap::Parser;
 use colored::*;
 use crossterm::event::{self, Event};
 use crossterm::{cursor, execute, terminal};
-use deepseek_rust_cli::agent::agent::{ApprovalResult, DeepSeekAgent};
+use deepseek_rust_cli::agent::agent::{AgentEvent, DeepSeekAgent};
+use deepseek_rust_cli::agent::commands::process_command;
 use deepseek_rust_cli::agent::mentions::process_mentions;
 use deepseek_rust_cli::cli::Args;
 use deepseek_rust_cli::config::{get_api_key, init_workspace, load_config};
@@ -38,17 +39,14 @@ async fn main() -> Result<()> {
 
     deepseek_rust_cli::updater::check_for_updates_background();
 
-    print_welcome_banner(&agent);
-
     let agent = Arc::new(Mutex::new(agent));
 
     let (tui_tx, tui_rx) = mpsc::channel(100);
-    let (app_tx, _app_rx) = mpsc::channel(1);
+    let (app_tx, mut app_rx) = mpsc::channel(1);
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<String>(100);
 
     // Input loop
     let tui_tx_for_input = tui_tx.clone();
-
     tokio::spawn(async move {
         let tick_rate = Duration::from_millis(100);
         let mut last_tick = Instant::now();
@@ -57,10 +55,9 @@ async fn main() -> Result<()> {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or(Duration::from_secs(0));
 
-            if event::poll(timeout).unwrap_or(false) {
-                if let Event::Key(key) = event::read().unwrap() {
-                    let _ = tui_tx_for_input.send(TuiEvent::Input(key)).await;
-                }
+            if event::poll(timeout).unwrap_or(false)
+                && let Event::Key(key) = event::read().unwrap() {
+                let _ = tui_tx_for_input.send(TuiEvent::Input(key)).await;
             }
             if last_tick.elapsed() >= tick_rate {
                 let _ = tui_tx_for_input.send(TuiEvent::Tick).await;
@@ -75,8 +72,6 @@ async fn main() -> Result<()> {
 
     tokio::spawn(async move {
         while let Some(cmd) = cmd_rx.recv().await {
-            let processed_cmd = process_mentions(&cmd);
-
             let (agent_event_tx, mut agent_event_rx) = mpsc::channel(100);
 
             let tui_tx_inner = tui_tx_for_agent.clone();
@@ -86,29 +81,62 @@ async fn main() -> Result<()> {
                 }
             });
 
-            let (_dummy_app_tx, dummy_app_rx) = mpsc::channel::<ApprovalResult>(1);
-
             let mut agent_lock = agent_clone.lock().await;
+
+            // Handle slash commands
+            if cmd.starts_with('/') {
+                match process_command(&mut agent_lock, &cmd).await {
+                    Ok(Some(response)) => {
+                        let _ = agent_event_tx
+                            .send(AgentEvent::Content { content: response })
+                            .await;
+                        let _ = agent_event_tx.send(AgentEvent::Done).await;
+                        continue;
+                    }
+                    Ok(None) => {
+                        // Not a recognized command, proceed to chat
+                    }
+                    Err(e) => {
+                        let _ = agent_event_tx
+                            .send(AgentEvent::Error {
+                                content: format!("Command error: {}", e),
+                            })
+                            .await;
+                        let _ = agent_event_tx.send(AgentEvent::Done).await;
+                        continue;
+                    }
+                }
+            }
+
+            let processed_cmd = process_mentions(&cmd);
             let _ = agent_lock
-                .chat_stream(processed_cmd, agent_event_tx, dummy_app_rx)
+                .chat_stream(processed_cmd, agent_event_tx.clone(), &mut app_rx)
                 .await;
+            let _ = agent_event_tx.send(AgentEvent::Done).await;
             agent_lock.reset_cancel();
         }
     });
 
     // Start TUI
-    let event_loop = EventLoop::new(tui_rx, app_tx, cmd_tx);
+    let event_loop = EventLoop::new(tui_rx, tui_tx.clone(), app_tx, cmd_tx, agent.clone());
 
     let res = event_loop.run().await;
 
+    execute!(
+        io::stdout(),
+        terminal::Clear(terminal::ClearType::All),
+        cursor::MoveTo(0, 0)
+    )?;
+
     if let Err(e) = res {
         println!("\n❌ UI error: {}", e);
+        std::process::exit(1);
     }
 
-    Ok(())
+    std::process::exit(0);
 }
 
-fn print_welcome_banner(agent: &DeepSeekAgent) {
+fn _print_welcome_banner(agent: &DeepSeekAgent) {
     let (width, _) = crossterm::terminal::size().unwrap_or((80, 24));
     let w = width as usize;
 
@@ -159,31 +187,25 @@ fn print_welcome_banner(agent: &DeepSeekAgent) {
     println!();
     println!(
         "  📌 {}  🔧 {}  🗑️ {}  🔁 {}  💾 {}  📂 {}  🚪 {}",
-        "/help".cyan().bold(),
-        "/model".cyan().bold(),
-        "/clear".cyan().bold(),
-        "/retry".cyan().bold(),
-        "/save".cyan().bold(),
-        "/sessions".cyan().bold(),
-        "/exit".cyan().bold()
+        "Model".dimmed(),
+        "Tools".dimmed(),
+        "Clear".dimmed(),
+        "Undo".dimmed(),
+        "Save".dimmed(),
+        "Load".dimmed(),
+        "Exit".dimmed()
     );
-
-    println!("{}", line);
     println!(
-        "Session: {} | Model: {}",
-        agent.session_id.bright_cyan(),
-        agent.model.bright_cyan()
+        "  ✨ {}  🛠️ {}  🧹 {}  🔙 {}  📁 {}  📖 {}  🚪 {}",
+        agent.model.bright_cyan(),
+        "Enabled".bright_green(),
+        "/clear".bright_yellow(),
+        "/undo".bright_yellow(),
+        "/savemem".bright_yellow(),
+        "/resume".bright_yellow(),
+        "exit/quit".bright_red()
     );
-
-    if let Some(latest) = deepseek_rust_cli::updater::get_latest_available_version()
-        && latest != VERSION
-    {
-        println!(
-            "\n✨ {} {} {} {}",
-            "New version".bright_green(),
-            latest.bold().bright_green(),
-            "available! Type".bright_green(),
-            "/update".bold().yellow()
-        );
-    }
+    println!();
+    println!("{}", line);
+    println!();
 }

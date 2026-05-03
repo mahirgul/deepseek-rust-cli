@@ -1,0 +1,10 @@
+[book]
+authors = ["Mahir Gul"]
+language = "en"
+multilingual = false
+src = "src"
+title = "DeepSeek Rust CLI Documentation"
+
+[output.html]
+git-repository-url = "https://github.com/mahirgul/deepseek-rust-cli"
+edit-url-template = "https://github.com/mahirgul/deepseek-rust-cli/edit/main/docs/{path}"

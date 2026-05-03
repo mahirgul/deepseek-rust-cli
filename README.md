@@ -14,8 +14,8 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 - **🛠️ Extensible Toolset:** 34+ tools managed by a trait-based registry system for reliable and fast execution.
 - **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands update the agent's environment state.
 - **🎨 Visual Feedback:** Dynamic **Spinners with Timers**, Syntax Highlighting for code blocks, and interactive progress bars.
-- **⌨️ TUI Enhancements:** **Tab completion** for file paths and commands in the interactive prompt.
-- **🛑 Stream Control:** Abort ongoing streaming responses instantly with **Esc** or **Ctrl+C**.
+- **⌨️ TUI Enhancements:** **Interactive Tool Approvals** (y/n/a), Automatic **Word Wrap**, and real-time operation counters.
+- **🛑 Stream Control:** Abort ongoing streaming responses instantly with **Esc** (cancel task) or **Ctrl+C** (exit).
 - **🔄 Auto-Update:** Background version checking with a one-command update system (`/update`).
 - **✏️ Surgical Editing:** **Fuzzy Text Replacement** that handles formatting differences for safer file modifications.
 - **🐙 GitHub Integration:** Full lifecycle management (Issues, PRs, Search, Workflows) via GitHub API.

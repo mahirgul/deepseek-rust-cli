@@ -287,9 +287,10 @@ Available Commands:
   /savemem <text>  - Save a note to memory.md
   /export          - Export session to a Markdown file
   /retry           - Regenerate last assistant response
+  /config          - Show or set configuration values
   /update          - Check for and install updates
   /help            - Show this help message
-  /exit, /quit     - Exit the application
+  /exit, /quit     - Exit the application (also 'exit' or 'quit')
 "#;
             Ok(Some(help.trim().to_string()))
         }

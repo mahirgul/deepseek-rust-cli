@@ -8,7 +8,7 @@ use ratatui::{
     Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 use std::io;
@@ -56,10 +56,9 @@ async fn main() -> Result<()> {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or(Duration::from_secs(0));
 
-            if event::poll(timeout).unwrap_or(false) {
-                if let Event::Key(key) = event::read().unwrap() {
-                    let _ = input_tx.send(TuiEvent::Input(key)).await;
-                }
+            if event::poll(timeout).unwrap_or(false)
+                && let Event::Key(key) = event::read().unwrap() {
+                let _ = input_tx.send(TuiEvent::Input(key)).await;
             }
             if last_tick.elapsed() >= tick_rate {
                 let _ = input_tx.send(TuiEvent::Tick).await;
@@ -108,15 +107,13 @@ async fn main() -> Result<()> {
                 TuiEvent::Input(key) => {
                     if key.kind == KeyEventKind::Press {
                         match key.code {
-                            KeyCode::Enter => {
-                                if !input.is_empty() {
-                                    messages.push(format!("You: {}", input));
-                                    // Process command...
-                                    if input == "exit" || input == "quit" {
-                                        break;
-                                    }
-                                    input.clear();
+                            KeyCode::Enter if !input.is_empty() => {
+                                messages.push(format!("You: {}", input));
+                                // Process command...
+                                if input == "exit" || input == "quit" {
+                                    break;
                                 }
+                                input.clear();
                             }
                             KeyCode::Char(c) => {
                                 input.push(c);

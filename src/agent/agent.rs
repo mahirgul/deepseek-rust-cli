@@ -107,7 +107,7 @@ impl DeepSeekAgent {
         &mut self,
         user_input: String,
         tx: mpsc::Sender<AgentEvent>,
-        approval_rx: mpsc::Receiver<ApprovalResult>,
+        approval_rx: &mut mpsc::Receiver<ApprovalResult>,
     ) -> Result<()> {
         self.manage_context();
         self.reset_cancel();
@@ -128,7 +128,7 @@ impl DeepSeekAgent {
         &mut self,
         user_input: String,
         tx: mpsc::Sender<AgentEvent>,
-        mut approval_rx: mpsc::Receiver<ApprovalResult>,
+        approval_rx: &mut mpsc::Receiver<ApprovalResult>,
     ) -> Result<()> {
         if !user_input.is_empty() {
             self.messages.push(Message {
