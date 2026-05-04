@@ -1,6 +1,9 @@
-use crate::agent::agent::{AgentEvent, ApprovalResult, DeepSeekAgent};
-use crate::api::types::TokenUsage;
-use crate::tui::colorizer::{CodeColorizer, CodeLang, StreamColorizer};
+use std::{
+    io::{self, Write},
+    sync::Arc,
+    time::Instant,
+};
+
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -10,10 +13,13 @@ use crossterm::{
     terminal::{self, disable_raw_mode, enable_raw_mode},
     QueueableCommand,
 };
-use std::io::{self, Write};
-use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::{mpsc, Mutex};
+
+use crate::{
+    agent::agent::{AgentEvent, ApprovalResult, DeepSeekAgent},
+    api::types::TokenUsage,
+    tui::colorizer::{CodeColorizer, CodeLang, StreamColorizer},
+};
 
 pub enum TuiEvent {
     Input(event::KeyEvent),
@@ -390,7 +396,8 @@ impl EventLoop {
                     }
                 }
                 TuiEvent::Agent(agent_event) => {
-                    // If aborted, ignore all agent events except Aborted/Done which confirm termination
+                    // If aborted, ignore all agent events except Aborted/Done which confirm
+                    // termination
                     if app.aborted {
                         match &agent_event {
                             AgentEvent::Aborted { token_usage }

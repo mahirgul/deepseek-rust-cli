@@ -1,5 +1,6 @@
-use crate::api::types::Tool;
 use serde_json::json;
+
+use crate::api::types::Tool;
 
 pub fn get_tools_schemas() -> Vec<Tool> {
     vec![

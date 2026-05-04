@@ -1,11 +1,12 @@
-use crate::tools::base::validate_path;
+use std::fs;
+
 use anyhow::Result;
 use md5;
 use sha2::{Digest, Sha256};
-use std::fs;
-use tokio::process::Command;
-use tokio::task;
+use tokio::{process::Command, task};
 use walkdir::WalkDir;
+
+use crate::tools::base::validate_path;
 
 pub async fn tree_view(path: Option<String>, max_depth: Option<usize>) -> Result<String> {
     task::spawn_blocking(move || {

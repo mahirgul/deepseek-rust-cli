@@ -1,9 +1,10 @@
-use crate::agent::agent::UndoAction;
+use std::{collections::HashMap, path::Path};
+
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
-use std::collections::HashMap;
-use std::path::Path;
+
+use crate::agent::agent::UndoAction;
 
 #[async_trait]
 pub trait Tool: Send + Sync {
@@ -86,8 +87,9 @@ pub fn validate_path(path: &str) -> Result<std::path::PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     struct MockTool;
     #[async_trait]

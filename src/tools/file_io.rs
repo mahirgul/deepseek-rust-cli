@@ -1,6 +1,7 @@
-use crate::tools::base::validate_path;
 use anyhow::Result;
 use tokio::fs;
+
+use crate::tools::base::validate_path;
 
 pub async fn read_local_file(
     path: &str,
@@ -122,9 +123,11 @@ pub async fn rename_file(src: &str, dst: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+
     use tempfile::TempDir;
+
+    use super::*;
 
     fn tempdir_in_cwd() -> TempDir {
         TempDir::new_in(".").expect("Failed to create temp dir in CWD")

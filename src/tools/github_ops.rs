@@ -1,5 +1,6 @@
-use anyhow::Result;
 use std::env;
+
+use anyhow::Result;
 
 // ─── GitHub API Client ──────────────────────────────────────────────
 
@@ -16,8 +17,7 @@ fn get_github_token() -> Result<String> {
         .or_else(|_| env::var("GH_TOKEN"))
         .map_err(|_| {
             anyhow::anyhow!(
-                "GITHUB_TOKEN not found in ~/.deep/.env.\n\
-                 Please add: GITHUB_TOKEN=your_token"
+                "GITHUB_TOKEN not found in ~/.deep/.env.\nPlease add: GITHUB_TOKEN=your_token"
             )
         })
 }

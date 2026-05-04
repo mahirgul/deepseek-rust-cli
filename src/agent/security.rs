@@ -1,7 +1,7 @@
+use std::{collections::HashSet, sync::OnceLock};
+
 use regex::Regex;
 use serde_json::Value;
-use std::collections::HashSet;
-use std::sync::OnceLock;
 
 static DANGEROUS_RE: OnceLock<Vec<Regex>> = OnceLock::new();
 

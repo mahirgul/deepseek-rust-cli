@@ -1,6 +1,6 @@
+use std::{fs, sync::OnceLock};
+
 use regex::Regex;
-use std::fs;
-use std::sync::OnceLock;
 
 static MENTION_RE: OnceLock<Regex> = OnceLock::new();
 
@@ -53,9 +53,11 @@ pub fn process_mentions(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+
     use tempfile::TempDir;
+
+    use super::*;
 
     #[test]
     fn test_process_mentions_basic() {

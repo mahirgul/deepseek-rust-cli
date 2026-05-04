@@ -1,19 +1,28 @@
+use std::{
+    io::{self},
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use anyhow::Result;
 use clap::{CommandFactory, Parser};
-use crossterm::event::{self, Event};
-use crossterm::{cursor, execute, terminal};
-use deepseek_rust_cli::agent::agent::{AgentEvent, DeepSeekAgent};
-use deepseek_rust_cli::agent::commands::process_command;
-use deepseek_rust_cli::agent::mentions::process_mentions;
-use deepseek_rust_cli::cli::{Args, ShellType};
-use deepseek_rust_cli::config::{get_api_key, init_workspace, load_config};
-use deepseek_rust_cli::logger::init_logger;
-use deepseek_rust_cli::tui::event_loop::{EventLoop, TuiEvent};
-use std::io::{self};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
-use tokio::sync::Mutex;
+use crossterm::{
+    cursor,
+    event::{self, Event},
+    execute, terminal,
+};
+use deepseek_rust_cli::{
+    agent::{
+        agent::{AgentEvent, DeepSeekAgent},
+        commands::process_command,
+        mentions::process_mentions,
+    },
+    cli::{Args, ShellType},
+    config::{get_api_key, init_workspace, load_config},
+    logger::init_logger,
+    tui::event_loop::{EventLoop, TuiEvent},
+};
+use tokio::sync::{mpsc, Mutex};
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -1,11 +1,10 @@
-use crate::agent::agent::UndoAction;
-use crate::tools;
-use crate::tools::base::Tool;
+use std::{collections::HashMap, path::Path};
+
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
-use std::collections::HashMap;
-use std::path::Path;
+
+use crate::{agent::agent::UndoAction, tools, tools::base::Tool};
 
 pub struct RunPythonTool;
 #[async_trait]

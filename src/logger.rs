@@ -1,5 +1,5 @@
-use std::fs;
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
+
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 pub fn init_logger(debug: bool) {

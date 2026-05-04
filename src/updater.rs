@@ -1,7 +1,9 @@
-use crate::version::VERSION;
+use std::sync::OnceLock;
+
 use anyhow::Result;
 use self_update::backends::github::Update;
-use std::sync::OnceLock;
+
+use crate::version::VERSION;
 
 static LATEST_VERSION: OnceLock<Option<String>> = OnceLock::new();
 

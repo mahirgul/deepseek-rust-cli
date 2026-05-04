@@ -1,19 +1,26 @@
-use crate::agent::context::get_project_context;
-use crate::agent::executor::{execute_tool_cached, execute_tools_parallel, ToolCache};
-use crate::agent::history::{load_history, save_history};
-use crate::api::client::DeepSeekClient;
-use crate::api::streaming::StreamParser;
-use crate::api::types::{Message, TokenUsage, ToolCall};
-use crate::config::Config;
-use crate::tools::schemas::get_tools_schemas;
+use std::{collections::HashMap, sync::Arc};
+
 use anyhow::Result;
 use colored::Colorize;
 use futures::StreamExt;
-use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
+
+use crate::{
+    agent::{
+        context::get_project_context,
+        executor::{execute_tool_cached, execute_tools_parallel, ToolCache},
+        history::{load_history, save_history},
+    },
+    api::{
+        client::DeepSeekClient,
+        streaming::StreamParser,
+        types::{Message, TokenUsage, ToolCall},
+    },
+    config::Config,
+    tools::schemas::get_tools_schemas,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ApprovalResult {

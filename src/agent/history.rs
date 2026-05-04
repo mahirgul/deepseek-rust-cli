@@ -1,6 +1,6 @@
+use std::{fs, path::PathBuf};
+
 use crate::api::types::Message;
-use std::fs;
-use std::path::PathBuf;
 
 pub fn load_history(session_id: &str) -> Vec<Message> {
     let path = get_history_path(session_id);

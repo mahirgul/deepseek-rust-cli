@@ -1,8 +1,8 @@
-use crate::agent::agent::DeepSeekAgent;
-use crate::agent::history::load_history;
+use std::{fs, path::PathBuf};
+
 use anyhow::Result;
-use std::fs;
-use std::path::PathBuf;
+
+use crate::agent::{agent::DeepSeekAgent, history::load_history};
 
 pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Option<String>> {
     let parts: Vec<&str> = text.split_whitespace().collect();
@@ -69,7 +69,8 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
         }
         "/info" => {
             let info = format!(
-                "Session ID: {}\nModel: {}\nTemperature: {}\nAuto-approve: {}\nHistory length: {} messages\nTokens: P:{} C:{} T:{}",
+                "Session ID: {}\nModel: {}\nTemperature: {}\nAuto-approve: {}\nHistory length: {} \
+                 messages\nTokens: P:{} C:{} T:{}",
                 agent.session_id,
                 agent.model,
                 agent.config.temperature,
@@ -244,18 +245,10 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
                 }
             } else {
                 let conf = format!(
-                    "Current Configuration:\n\
-                     - model: {}\n\
-                     - base_url: {}\n\
-                     - temperature: {}\n\
-                     - top_p: {}\n\
-                     - presence_penalty: {}\n\
-                     - frequency_penalty: {}\n\
-                     - max_tokens: {}\n\
-                     - max_iterations: {}\n\
-                     - show_token_usage: {}\n\
-                     - concise_reasoning: {}\n\
-                     - debug: {}",
+                    "Current Configuration:\n- model: {}\n- base_url: {}\n- temperature: {}\n- \
+                     top_p: {}\n- presence_penalty: {}\n- frequency_penalty: {}\n- max_tokens: \
+                     {}\n- max_iterations: {}\n- show_token_usage: {}\n- concise_reasoning: {}\n- \
+                     debug: {}",
                     agent.config.model,
                     agent.config.base_url,
                     agent.config.temperature,

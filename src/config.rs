@@ -1,8 +1,8 @@
+use std::{fs, path::PathBuf};
+
 use anyhow::Result;
 use dotenvy::dotenv;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
@@ -37,7 +37,8 @@ impl Default for Config {
             .replace("{shell}", &shell);
 
         Self {
-            model: "deepseek-v4-pro".to_string(), // Reverting to deepseek-v4-pro as requested by user
+            model: "deepseek-v4-pro".to_string(), /* Reverting to deepseek-v4-pro as requested by
+                                                   * user */
             base_url: "https://api.deepseek.com".to_string(),
             request_timeout: 6000, // 100 minutes
             temperature: 0.0,
@@ -53,8 +54,10 @@ impl Default for Config {
         }
     }
 }
-const DEFAULT_SYSTEM_PROMPT: &str = "You are a terminal-based AI coding assistant running on {os} via {shell}.
-Be concise and practical. You have full access to the workspace to read/write files and execute commands.
+const DEFAULT_SYSTEM_PROMPT: &str = "You are a terminal-based AI coding assistant running on {os} \
+                                     via {shell}.
+Be concise and practical. You have full access to the workspace to read/write files and execute \
+                                     commands.
 Explain your actions briefly and always verify file contents before modification.";
 
 /// Initialize the .deep directory structure in the current workspace.
@@ -156,9 +159,8 @@ pub fn get_api_key() -> Result<String> {
     }
 
     anyhow::bail!(
-        "DEEPSEEK_API_KEY not found.\n\
-         Please create ~/.deep/.env or workspace .env with:\n\
-         DEEPSEEK_API_KEY=your_api_key_here"
+        "DEEPSEEK_API_KEY not found.\nPlease create ~/.deep/.env or workspace .env \
+         with:\nDEEPSEEK_API_KEY=your_api_key_here"
     )
 }
 

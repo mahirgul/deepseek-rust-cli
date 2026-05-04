@@ -1,8 +1,9 @@
-use crate::api::types::{ChatRequest, Message, Tool};
+use std::{sync::Arc, time::Duration};
+
 use anyhow::Result;
 use reqwest::{Client, Response};
-use std::sync::Arc;
-use std::time::Duration;
+
+use crate::api::types::{ChatRequest, Message, Tool};
 
 /// High-performance HTTP client with connection pooling, HTTP/2, and retry logic.
 pub struct DeepSeekClient {
