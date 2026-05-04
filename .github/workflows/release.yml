@@ -49,12 +49,15 @@ jobs:
         run: |
           mkdir -p dist
           cp target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} dist/
-          cd dist
+          
           if [ "${{ matrix.platform.os }}" = "windows-x86_64" ]; then
+            cd dist
             7z a ../deepseek-rust-cli-${{ matrix.platform.os }}.zip ${{ matrix.platform.bin }}
             cd ..
-            shasum -a 256 deepseek-rust-cli-${{ matrix.platform.os }}.zip > deepseek-rust-cli-${{ matrix.platform.os }}.zip.sha256
+            # Use PowerShell for checksum on Windows
+            powershell.exe -Command "(Get-FileHash -Path 'deepseek-rust-cli-${{ matrix.platform.os }}.zip' -Algorithm SHA256).Hash.ToLower() + '  deepseek-rust-cli-${{ matrix.platform.os }}.zip'" > deepseek-rust-cli-${{ matrix.platform.os }}.zip.sha256
           else
+            cd dist
             tar czf ../deepseek-rust-cli-${{ matrix.platform.os }}.tar.gz ${{ matrix.platform.bin }}
             cd ..
             shasum -a 256 deepseek-rust-cli-${{ matrix.platform.os }}.tar.gz > deepseek-rust-cli-${{ matrix.platform.os }}.tar.gz.sha256
