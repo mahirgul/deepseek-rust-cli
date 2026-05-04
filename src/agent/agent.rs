@@ -83,6 +83,7 @@ pub struct DeepSeekAgent {
     pub auto_approve: bool,
     /// Shared cancel token — can be cancelled from outside the agent mutex
     pub cancel_token: Arc<std::sync::Mutex<CancellationToken>>,
+    pub run_id: Arc<std::sync::atomic::AtomicUsize>,
     pub cwd: std::path::PathBuf,
 }
 
@@ -122,6 +123,7 @@ impl DeepSeekAgent {
             undo_stack: Vec::new(),
             auto_approve: false,
             cancel_token: Arc::new(std::sync::Mutex::new(CancellationToken::new())),
+            run_id: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             cwd: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             tool_cache: HashMap::new(),
         }
@@ -223,15 +225,19 @@ impl DeepSeekAgent {
                 max_tokens: Some(self.config.max_tokens),
             };
 
-            let response_res = self
-                .client
-                .chat_completions(
+            let cancel_token = self.cancel_token.lock().unwrap().clone();
+
+            let response_res = tokio::select! {
+                res = self.client.chat_completions(
                     &self.model,
                     self.messages.clone(),
                     Some(get_tools_schemas()),
                     options,
-                )
-                .await;
+                ) => res,
+                _ = cancel_token.cancelled() => {
+                    break;
+                }
+            };
 
             let response = match response_res {
                 Ok(res) => res,
@@ -253,7 +259,19 @@ impl DeepSeekAgent {
             let mut stream = response.bytes_stream();
             let mut stream_error = None;
 
-            while let Some(item) = stream.next().await {
+            loop {
+                let item_res = tokio::select! {
+                    item = stream.next() => item,
+                    _ = cancel_token.cancelled() => {
+                        break;
+                    }
+                };
+
+                let item = match item_res {
+                    Some(item) => item,
+                    None => break,
+                };
+
                 // Check cancellation during streaming
                 if self.is_cancelled() {
                     break;

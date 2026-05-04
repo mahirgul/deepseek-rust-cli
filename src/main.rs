@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
 
     let (tui_tx, tui_rx) = mpsc::channel(100);
     let (app_tx, mut app_rx) = mpsc::channel(1);
-    let (cmd_tx, mut cmd_rx) = mpsc::channel::<String>(100);
+    let (cmd_tx, mut cmd_rx) = mpsc::channel::<(usize, String)>(100);
 
     // Input loop
     let tui_tx_for_input = tui_tx.clone();
@@ -116,7 +116,15 @@ async fn main() -> Result<()> {
     let tui_tx_for_agent = tui_tx.clone();
 
     tokio::spawn(async move {
-        while let Some(cmd) = cmd_rx.recv().await {
+        while let Some((cmd_run_id, cmd)) = cmd_rx.recv().await {
+            let mut agent_lock = agent_clone.lock().await;
+
+            // If the command is from an aborted session, skip it completely.
+            // This clears the queue of old commands.
+            if cmd_run_id != agent_lock.run_id.load(std::sync::atomic::Ordering::SeqCst) {
+                continue;
+            }
+
             let (agent_event_tx, mut agent_event_rx) = mpsc::channel(100);
 
             let tui_tx_inner = tui_tx_for_agent.clone();
@@ -125,8 +133,6 @@ async fn main() -> Result<()> {
                     let _ = tui_tx_inner.send(TuiEvent::Agent(ev)).await;
                 }
             });
-
-            let mut agent_lock = agent_clone.lock().await;
 
             // Handle slash commands
             if cmd.starts_with('/') {

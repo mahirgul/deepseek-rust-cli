@@ -19,6 +19,7 @@ use crate::{
     agent::agent::{AgentEvent, ApprovalResult, DeepSeekAgent},
     api::types::TokenUsage,
     tui::colorizer::{CodeColorizer, CodeLang, StreamColorizer},
+    version::VERSION,
 };
 
 pub enum TuiEvent {
@@ -181,10 +182,11 @@ pub struct EventLoop {
     rx: mpsc::Receiver<TuiEvent>,
     rx_tx: mpsc::Sender<TuiEvent>,
     app_tx: mpsc::Sender<ApprovalResult>,
-    cmd_tx: mpsc::Sender<String>,
+    cmd_tx: mpsc::Sender<(usize, String)>,
     agent: Arc<Mutex<DeepSeekAgent>>,
     /// Shared cancel token — can be cancelled without locking the agent mutex
     cancel_token: Arc<std::sync::Mutex<tokio_util::sync::CancellationToken>>,
+    run_id: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl EventLoop {
@@ -192,7 +194,7 @@ impl EventLoop {
         rx: mpsc::Receiver<TuiEvent>,
         rx_tx: mpsc::Sender<TuiEvent>,
         app_tx: mpsc::Sender<ApprovalResult>,
-        cmd_tx: mpsc::Sender<String>,
+        cmd_tx: mpsc::Sender<(usize, String)>,
         agent: Arc<Mutex<DeepSeekAgent>>,
     ) -> Self {
         // Clone the cancel token from the agent (brief lock)
@@ -204,6 +206,10 @@ impl EventLoop {
                     tokio_util::sync::CancellationToken::new(),
                 ))
             });
+        let run_id = agent
+            .try_lock()
+            .map(|a| a.run_id.clone())
+            .unwrap_or_else(|_| Arc::new(std::sync::atomic::AtomicUsize::new(0)));
         Self {
             rx,
             rx_tx,
@@ -211,6 +217,7 @@ impl EventLoop {
             cmd_tx,
             agent,
             cancel_token,
+            run_id,
         }
     }
 
@@ -253,6 +260,8 @@ impl EventLoop {
                 TuiEvent::Abort => {
                     // Cancel via shared token — no agent lock needed, avoids deadlock
                     self.cancel_token.lock().unwrap().cancel();
+                    // Increment run_id to discard any queued operations in cmd_rx
+                    self.run_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     // Set aborted flag so we ignore any in-flight AgentEvents
                     app.aborted = true;
                     app.current_task = None;
@@ -332,7 +341,8 @@ impl EventLoop {
                                 app.aborted = false;
                                 // Track in queue
                                 app.queued_commands.push(cmd.clone());
-                                let _ = self.cmd_tx.send(cmd).await;
+                                let current_run_id = self.run_id.load(std::sync::atomic::Ordering::SeqCst);
+                                let _ = self.cmd_tx.send((current_run_id, cmd)).await;
                                 app.input.clear();
                                 app.cursor_pos = 0;
                             }
@@ -609,7 +619,7 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
     // ── Line 1 (top of footer): Status ──────────────────────────────
     let line1_y = term_height.saturating_sub(fh);
     stdout.queue(cursor::MoveTo(0, line1_y))?;
-    stdout.queue(style::SetBackgroundColor(style::Color::Black))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::DarkGrey))?;
 
     let spinner_chars = vec!['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     let spinner = if app.current_task.is_some() || app.awaiting_approval {
@@ -633,12 +643,13 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
         format!(" {} ", app.model).magenta().to_string()
     };
 
-    let line1 = format!("{}{}", spinner, status);
+    let line1 = format!("v{} {}{}", VERSION, spinner, status);
     stdout.queue(style::Print(line1))?;
     stdout.queue(terminal::Clear(terminal::ClearType::UntilNewLine))?;
 
     // ── Line 2: Folder + Token info ─────────────────────────────────
     stdout.queue(cursor::MoveTo(0, term_height.saturating_sub(fh - 1)))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::DarkGrey))?;
 
     let total_tokens = app.total_tokens();
     let token_str = if total_tokens > 0 {
@@ -671,6 +682,7 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
     // ── Line 3: Input prompt ────────────────────────────────────────
     let line3_y = term_height.saturating_sub(2);
     stdout.queue(cursor::MoveTo(0, line3_y))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::Black))?;
 
     let prompt = "> ";
     let avail = (term_width as usize).saturating_sub(3); // "> " + 1 char margin
@@ -692,14 +704,23 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
     } else {
         0
     };
-    let cursor_char = app.input[..app.cursor_pos.min(app.input.len())]
-        .chars()
-        .count();
+    let cursor_byte_pos = app.cursor_pos.min(app.input.len());
+    let safe_cursor_pos = if app.input.is_char_boundary(cursor_byte_pos) {
+        cursor_byte_pos
+    } else {
+        let mut p = cursor_byte_pos;
+        while p > 0 && !app.input.is_char_boundary(p) {
+            p -= 1;
+        }
+        p
+    };
+    let cursor_char = app.input[..safe_cursor_pos].chars().count();
     let cursor_x = 2 + ((cursor_char.saturating_sub(visible_offset)) as u16);
 
     // ── Line 4 (bottom): Queue entries horizontal ───────────────────
     let line4_y = term_height.saturating_sub(1);
     stdout.queue(cursor::MoveTo(0, line4_y))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::DarkGrey))?;
 
     if !app.queued_commands.is_empty() {
         // Build queue display: "q1: cmd1  q2: cmd2  ..."

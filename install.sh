@@ -118,13 +118,11 @@ main() {
 
     check_deps
 
-    local platform
     platform=$(detect_platform)
     info "Detected platform: ${BOLD}$platform${NC}"
 
     # Get latest release
     info "Fetching latest release..."
-    local latest_tag
     latest_tag=$(download "https://api.github.com/repos/$REPO/releases/latest" - 2>/dev/null | \
         grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
@@ -135,12 +133,11 @@ main() {
     info "Latest version: ${BOLD}$latest_tag${NC}"
 
     # Download URLs
-    local archive_name="$BIN_NAME-$platform.tar.gz"
-    local download_url="https://github.com/$REPO/releases/download/$latest_tag/$archive_name"
-    local checksum_url="${download_url}.sha256"
+    archive_name="$BIN_NAME-$platform.tar.gz"
+    download_url="https://github.com/$REPO/releases/download/$latest_tag/$archive_name"
+    checksum_url="${download_url}.sha256"
 
     # Create temp dir
-    local tmpdir
     tmpdir=$(mktemp -d)
     trap 'rm -rf "$tmpdir"' EXIT
 
@@ -149,7 +146,6 @@ main() {
     download "$download_url" "$tmpdir/$archive_name"
 
     # Download and verify checksum
-    local expected_sha
     if expected_sha=$(download "$checksum_url" - 2>/dev/null | cut -d' ' -f1); then
         if [ -n "$expected_sha" ]; then
             verify_checksum "$tmpdir/$archive_name" "$expected_sha"
