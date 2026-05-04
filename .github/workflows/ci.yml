@@ -53,13 +53,7 @@ jobs:
         with:
           tool: cargo-deny
 
-      - name: Rust Cache (sccache)
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Run ${{ matrix.name }}
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
         run: |
           case "${{ matrix.cmd }}" in
             fmt)
@@ -108,20 +102,11 @@ jobs:
         if: runner.os == 'Linux'
         uses: rui314/setup-mold@v1
 
-      - name: Rust Cache (sccache)
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Build (Release)
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
         run: cargo build --release --target ${{ matrix.platform.target }} --verbose
 
       - name: Run Tests
         shell: bash
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
         run: |
           # Only run tests if we are on a compatible host
           if [[ "${{ matrix.platform.runs-on }}" == "ubuntu-latest" && "${{ matrix.platform.target }}" == *"linux"* ]] || \

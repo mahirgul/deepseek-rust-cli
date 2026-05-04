@@ -41,13 +41,7 @@ jobs:
         with:
           targets: ${{ matrix.platform.target }}
 
-      - name: Rust Cache (sccache)
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Build
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
         run: cargo build --release --target ${{ matrix.platform.target }}
 
       - name: Package
