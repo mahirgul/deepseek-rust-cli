@@ -621,7 +621,7 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
     // ── Line 1 (top of footer): Status ──────────────────────────────
     let line1_y = term_height.saturating_sub(fh);
     stdout.queue(cursor::MoveTo(0, line1_y))?;
-    stdout.queue(style::SetBackgroundColor(style::Color::DarkGrey))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::Black))?;
 
     let spinner_chars = vec!['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     let spinner = if app.current_task.is_some() || app.awaiting_approval {
@@ -651,7 +651,7 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
 
     // ── Line 2: Folder + Token info ─────────────────────────────────
     stdout.queue(cursor::MoveTo(0, term_height.saturating_sub(fh - 1)))?;
-    stdout.queue(style::SetBackgroundColor(style::Color::DarkGrey))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::Black))?;
 
     let total_tokens = app.total_tokens();
     let token_str = if total_tokens > 0 {
@@ -722,7 +722,7 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
     // ── Line 4 (bottom): Queue entries horizontal ───────────────────
     let line4_y = term_height.saturating_sub(1);
     stdout.queue(cursor::MoveTo(0, line4_y))?;
-    stdout.queue(style::SetBackgroundColor(style::Color::DarkGrey))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::Black))?;
 
     if !app.queued_commands.is_empty() {
         // Build queue display: "q1: cmd1  q2: cmd2  ..."
