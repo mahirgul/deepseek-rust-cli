@@ -261,7 +261,8 @@ impl EventLoop {
                     // Cancel via shared token — no agent lock needed, avoids deadlock
                     self.cancel_token.lock().unwrap().cancel();
                     // Increment run_id to discard any queued operations in cmd_rx
-                    self.run_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    self.run_id
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     // Set aborted flag so we ignore any in-flight AgentEvents
                     app.aborted = true;
                     app.current_task = None;
@@ -341,7 +342,8 @@ impl EventLoop {
                                 app.aborted = false;
                                 // Track in queue
                                 app.queued_commands.push(cmd.clone());
-                                let current_run_id = self.run_id.load(std::sync::atomic::Ordering::SeqCst);
+                                let current_run_id =
+                                    self.run_id.load(std::sync::atomic::Ordering::SeqCst);
                                 let _ = self.cmd_tx.send((current_run_id, cmd)).await;
                                 app.input.clear();
                                 app.cursor_pos = 0;

@@ -13,12 +13,7 @@ fn get_short_target() -> String {
     let arch = std::env::consts::ARCH; // "x86_64", "aarch64"
 
     // Map std::env::consts::OS to our short OS names
-    let os_short = match os {
-        "linux" => "linux",
-        "macos" => "macos",
-        "windows" => "windows",
-        _ => os,
-    };
+    let os_short = os;
 
     // Normalize arch names
     let arch_short = match arch {
