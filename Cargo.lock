@@ -460,7 +460,7 @@ dependencies = [
 
 [[package]]
 name = "deepseek-rust-cli"
-version = "1.11.0"
+version = "1.11.3"
 dependencies = [
  "anyhow",
  "arc-swap",

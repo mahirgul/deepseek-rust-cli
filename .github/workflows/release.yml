@@ -24,7 +24,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             bin: deepseek-rust-cli.exe
           - os: macos-x86_64
-            runs-on: macos-latest
+            runs-on: macos-13
             target: x86_64-apple-darwin
             bin: deepseek-rust-cli
           - os: macos-aarch64

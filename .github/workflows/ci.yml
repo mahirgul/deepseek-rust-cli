@@ -21,24 +21,31 @@ jobs:
         include:
           - name: Format
             cmd: fmt
+            toolchain: nightly
           - name: Clippy
             cmd: clippy
+            toolchain: stable
           - name: Audit
             cmd: audit
+            toolchain: stable
+          - name: Deny
+            cmd: deny
+            toolchain: stable
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ matrix.toolchain }}
           components: rustfmt, clippy
 
       - name: Install Tools
-        if: matrix.cmd == 'audit'
+        if: matrix.cmd == 'audit' || matrix.cmd == 'deny'
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-audit
+          tool: cargo-audit,cargo-deny
 
       - name: Rust Cache (sccache)
         uses: mozilla-actions/sccache-action@v0.0.6
@@ -58,6 +65,9 @@ jobs:
             audit)
               cargo audit
               ;;
+            deny)
+              cargo deny check
+              ;;
           esac
 
   # ─── Full Build & Test Matrix ───────────────────────────────
@@ -76,7 +86,7 @@ jobs:
             runs-on: windows-latest
             target: x86_64-pc-windows-msvc
           - name: macOS
-            runs-on: macos-latest
+            runs-on: macos-13
             target: x86_64-apple-darwin
 
     steps:
@@ -110,17 +120,8 @@ jobs:
           # Only run tests if we are on a compatible host
           if [[ "${{ matrix.platform.runs-on }}" == "ubuntu-latest" && "${{ matrix.platform.target }}" == *"linux"* ]] || \
              [[ "${{ matrix.platform.runs-on }}" == "windows-latest" && "${{ matrix.platform.target }}" == *"windows"* ]] || \
-             [[ "${{ matrix.platform.runs-on }}" == "macos-latest" && "${{ matrix.platform.target }}" == *"apple-darwin"* ]]; then
+             [[ "${{ matrix.platform.runs-on }}" == "macos-13" && "${{ matrix.platform.target }}" == *"apple-darwin"* ]]; then
             cargo test --target ${{ matrix.platform.target }} --verbose
           else
             echo "Skipping tests for ${{ matrix.platform.target }} on ${{ matrix.platform.runs-on }}"
           fi
-
-      - name: Install cargo-deny
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-deny
-
-      - name: Check License
-        run: cargo deny check licenses
-        continue-on-error: true
