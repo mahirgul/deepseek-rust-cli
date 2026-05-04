@@ -24,7 +24,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             bin: deepseek-rust-cli.exe
           - os: macos-x86_64
-            runs-on: macos-13
+            runs-on: macos-latest
             target: x86_64-apple-darwin
             bin: deepseek-rust-cli
           - os: macos-aarch64
@@ -52,8 +52,12 @@ jobs:
           cd dist
           if [ "${{ matrix.platform.os }}" = "windows-x86_64" ]; then
             7z a ../deepseek-rust-cli-${{ matrix.platform.os }}.zip ${{ matrix.platform.bin }}
+            cd ..
+            shasum -a 256 deepseek-rust-cli-${{ matrix.platform.os }}.zip > deepseek-rust-cli-${{ matrix.platform.os }}.zip.sha256
           else
             tar czf ../deepseek-rust-cli-${{ matrix.platform.os }}.tar.gz ${{ matrix.platform.bin }}
+            cd ..
+            shasum -a 256 deepseek-rust-cli-${{ matrix.platform.os }}.tar.gz > deepseek-rust-cli-${{ matrix.platform.os }}.tar.gz.sha256
           fi
 
       - name: Upload Artifacts

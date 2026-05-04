@@ -62,7 +62,7 @@ jobs:
             runs-on: windows-latest
             target: x86_64-pc-windows-msvc
           - name: macOS
-            runs-on: macos-13
+            runs-on: macos-latest
             target: x86_64-apple-darwin
 
     steps:
@@ -87,7 +87,7 @@ jobs:
           # Only run tests if we are on a compatible host
           if [[ "${{ matrix.platform.runs-on }}" == "ubuntu-latest" && "${{ matrix.platform.target }}" == *"linux"* ]] || \
              [[ "${{ matrix.platform.runs-on }}" == "windows-latest" && "${{ matrix.platform.target }}" == *"windows"* ]] || \
-             [[ "${{ matrix.platform.runs-on }}" == "macos-13" && "${{ matrix.platform.target }}" == *"apple-darwin"* ]]; then
+             [[ "${{ matrix.platform.runs-on }}" == "macos-latest" && "${{ matrix.platform.target }}" == *"apple-darwin"* ]]; then
             cargo test --target ${{ matrix.platform.target }} --verbose
           else
             echo "Skipping tests for ${{ matrix.platform.target }} on ${{ matrix.platform.runs-on }}"
