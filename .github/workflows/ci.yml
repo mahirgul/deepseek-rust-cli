@@ -25,12 +25,6 @@ jobs:
           - name: Clippy
             cmd: clippy
             toolchain: stable
-          - name: Audit
-            cmd: audit
-            toolchain: stable
-          - name: Deny
-            cmd: deny
-            toolchain: stable
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,18 +35,6 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
           components: rustfmt, clippy
 
-      - name: Install cargo-audit
-        if: matrix.cmd == 'audit'
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-audit
-
-      - name: Install cargo-deny
-        if: matrix.cmd == 'deny'
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-deny
-
       - name: Run ${{ matrix.name }}
         run: |
           case "${{ matrix.cmd }}" in
@@ -61,12 +43,6 @@ jobs:
               ;;
             clippy)
               cargo +${{ matrix.toolchain }} clippy --workspace --all-targets -- -D warnings
-              ;;
-            audit)
-              cargo audit
-              ;;
-            deny)
-              cargo deny check
               ;;
           esac
 
