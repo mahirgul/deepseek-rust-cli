@@ -36,16 +36,22 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
           components: rustfmt, clippy
 
-      - name: Install Tools
-        if: matrix.cmd == 'audit' || matrix.cmd == 'deny'
+      - name: Install cargo-audit
+        if: matrix.cmd == 'audit'
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-audit,cargo-deny
+          tool: cargo-audit
+
+      - name: Install cargo-deny
+        if: matrix.cmd == 'deny'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
 
       - name: Rust Cache (sccache)
         uses: mozilla-actions/sccache-action@v0.0.6
@@ -57,10 +63,10 @@ jobs:
         run: |
           case "${{ matrix.cmd }}" in
             fmt)
-              cargo fmt --all -- --check
+              cargo +${{ matrix.toolchain }} fmt --all -- --check
               ;;
             clippy)
-              cargo clippy --workspace --all-targets -- -D warnings
+              cargo +${{ matrix.toolchain }} clippy --workspace --all-targets -- -D warnings
               ;;
             audit)
               cargo audit
