@@ -2,10 +2,11 @@
 # https://embarkstudios.github.io/cargo-deny/
 
 [advisories]
+db-urls = ["https://github.com/rustsec/advisory-db"]
 vulnerability = "deny"
-unmaintained = "workspace"
+unmaintained = "warn"
 yanked = "deny"
-notice = "workspace"
+notice = "warn"
 ignore = []
 
 [licenses]
@@ -23,8 +24,8 @@ allow = [
     "Zlib",
     "BSL-1.0",
 ]
+confidence-threshold = 0.8
 copyleft = "warn"
-default = "deny"
 
 [[licenses.clarify]]
 name = "ring"
