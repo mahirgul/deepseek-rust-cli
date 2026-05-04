@@ -77,7 +77,7 @@ pub fn validate_path(path: &str) -> Result<std::path::PathBuf> {
         }
     };
 
-    let cwd = std::env::current_dir()?;
+    let cwd = std::fs::canonicalize(std::env::current_dir()?)?;
     if !canonical.starts_with(&cwd) && !path.is_empty() {
         anyhow::bail!("Path traversal detected: access to '{}' is denied", path);
     }
