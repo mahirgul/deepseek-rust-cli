@@ -3,14 +3,12 @@
 
 [advisories]
 db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
-unmaintained = "warn"
-yanked = "deny"
-notice = "warn"
-ignore = []
+# Severity of vulnerabilities, unmaintained, etc. are now handled by defaults
+# and can be overridden via more specific policy settings if needed.
 
 [licenses]
-unlicensed = "deny"
+# unlicensed, copyleft, and default were removed in 0.16
+# Logic: if not in 'allow' or 'exceptions', it's an error.
 allow = [
     "MIT",
     "Apache-2.0",
@@ -23,9 +21,9 @@ allow = [
     "Unicode-3.0",
     "Zlib",
     "BSL-1.0",
+    "Unicode-DFS-2016",
 ]
 confidence-threshold = 0.8
-copyleft = "warn"
 
 [[licenses.clarify]]
 name = "ring"
