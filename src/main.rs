@@ -129,12 +129,16 @@ async fn main() -> Result<()> {
     let tui_tx_for_agent = tui_tx.clone();
 
     tokio::spawn(async move {
+        tracing::info!("Agent task started, waiting for commands...");
         while let Some((cmd_run_id, cmd)) = cmd_rx.recv().await {
+            tracing::info!("Agent received command: {}", cmd);
             let mut agent_lock = agent_clone.lock().await;
+            tracing::info!("Agent lock acquired for command: {}", cmd);
 
             // If the command is from an aborted session, skip it completely.
             // This clears the queue of old commands.
             if cmd_run_id != agent_lock.run_id.load(std::sync::atomic::Ordering::SeqCst) {
+                tracing::warn!("Skipping stale command (run_id mismatch): {}", cmd);
                 continue;
             }
 
@@ -149,6 +153,7 @@ async fn main() -> Result<()> {
 
             // Handle slash commands
             if cmd.starts_with('/') {
+                tracing::info!("Processing slash command: {}", cmd);
                 match process_command(&mut agent_lock, &cmd).await {
                     Ok(Some(response)) => {
                         let tu = agent_lock.token_usage.clone();
@@ -162,6 +167,7 @@ async fn main() -> Result<()> {
                     }
                     Ok(None) => {
                         // Not a recognized command, proceed to chat
+                        tracing::info!("Slash command not recognized, trying as chat: {}", cmd);
                     }
                     Err(e) => {
                         let tu = agent_lock.token_usage.clone();
@@ -179,9 +185,14 @@ async fn main() -> Result<()> {
             }
 
             let processed_cmd = process_mentions(&cmd);
-            let _ = agent_lock
+            tracing::info!("Calling chat_stream for: {}", processed_cmd);
+            let chat_result = agent_lock
                 .chat_stream(processed_cmd, agent_event_tx.clone(), &mut app_rx)
                 .await;
+            match &chat_result {
+                Ok(()) => tracing::info!("chat_stream completed successfully"),
+                Err(e) => tracing::error!("chat_stream failed: {}", e),
+            }
             // Only send Done if not aborted (Aborted event already sent by chat_stream)
             if !agent_lock
                 .cancel_token
@@ -195,7 +206,9 @@ async fn main() -> Result<()> {
                     .await;
             }
             agent_lock.reset_cancel();
+            tracing::info!("Agent done processing command: {}", cmd);
         }
+        tracing::warn!("Agent task cmd_rx closed, exiting");
     });
 
     // Start TUI

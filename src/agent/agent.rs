@@ -214,6 +214,7 @@ impl DeepSeekAgent {
         tx: mpsc::Sender<AgentEvent>,
         approval_rx: &mut mpsc::Receiver<ApprovalResult>,
     ) -> Result<()> {
+        tracing::info!("chat_stream_inner started, input len: {}", user_input.len());
         if !user_input.is_empty() {
             self.messages.push(Message {
                 role: "user".to_string(),
@@ -232,6 +233,11 @@ impl DeepSeekAgent {
             }
 
             iteration += 1;
+            tracing::info!(
+                "Starting iteration {} of {}",
+                iteration,
+                self.config.max_iterations
+            );
             let options = crate::api::types::ChatOptions {
                 temperature: self.config.temperature,
                 top_p: self.config.top_p,

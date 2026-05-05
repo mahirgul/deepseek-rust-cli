@@ -640,6 +640,7 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
 
     let line1 = format!("v{} {}{}", VERSION, spinner, status);
     stdout.queue(style::Print(line1))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::Black))?;
     stdout.queue(terminal::Clear(terminal::ClearType::UntilNewLine))?;
 
     // ── Line 2: Folder + Token info ─────────────────────────────────
@@ -672,6 +673,7 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
 
     let line2 = format!("{}{}", cwd_display.blue(), token_str.dim());
     stdout.queue(style::Print(line2))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::Black))?;
     stdout.queue(terminal::Clear(terminal::ClearType::UntilNewLine))?;
 
     // ── Line 3: Input prompt ────────────────────────────────────────
@@ -690,6 +692,7 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
     };
     let line3 = format!("{}{}", prompt.cyan(), input_display);
     stdout.queue(style::Print(line3))?;
+    stdout.queue(style::SetBackgroundColor(style::Color::Black))?;
     stdout.queue(terminal::Clear(terminal::ClearType::UntilNewLine))?;
 
     // Cursor X: prompt width + cursor char offset (relative to visible portion)

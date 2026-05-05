@@ -21,8 +21,8 @@ impl DeepSeekClient {
             .pool_max_idle_per_host(4)
             // TCP keep-alive for persistent connections
             .tcp_keepalive(Some(Duration::from_secs(60)))
-            // Enable HTTP/2 for multiplexed streaming
-            .http2_prior_knowledge()
+            // Use HTTP/2 via ALPN negotiation (works behind proxies/firewalls)
+            .http2_adaptive_window(true)
             // Auto-decompress responses
             .gzip(true)
             .brotli(true)
@@ -52,6 +52,9 @@ impl DeepSeekClient {
         options: crate::api::types::ChatOptions,
     ) -> Result<Response> {
         let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        tracing::info!("API request to: {}", url);
+        tracing::info!("Model: {}, Messages count: {}", model, messages.len());
+
         let request = ChatRequest {
             model: model.to_string(),
             messages,
@@ -69,6 +72,7 @@ impl DeepSeekClient {
         // Exponential backoff: 500ms, 1s, 2s
         for attempt in 0..3 {
             if attempt > 0 {
+                tracing::info!("Retry attempt {}...", attempt + 1);
                 tokio::time::sleep(Duration::from_millis(500 * (1 << attempt))).await;
             }
 
@@ -82,11 +86,13 @@ impl DeepSeekClient {
 
             match response_res {
                 Ok(response) => {
+                    let status = response.status();
+                    tracing::info!("API response status: {}", status);
                     if response.status().is_success() {
                         return Ok(response);
                     }
-                    let status = response.status();
                     let err_text = response.text().await.unwrap_or_default();
+                    tracing::error!("API error response: {}", err_text);
 
                     if status.is_server_error() || status.as_u16() == 429 {
                         last_err = Some(anyhow::anyhow!("API Error ({}): {}", status, err_text));
@@ -96,6 +102,7 @@ impl DeepSeekClient {
                     }
                 }
                 Err(e) => {
+                    tracing::error!("Network error on attempt {}: {}", attempt + 1, e);
                     last_err = Some(anyhow::anyhow!("Network Error: {}", e));
                     continue;
                 }
