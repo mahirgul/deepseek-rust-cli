@@ -13,8 +13,15 @@ pub struct DeepSeekClient {
 }
 
 impl DeepSeekClient {
-    pub fn new(api_key: String, base_url: String, timeout_secs: u64) -> Self {
-        let client = Client::builder()
+    pub fn new(
+        api_key: String,
+        base_url: String,
+        timeout_secs: u64,
+        proxy_url: Option<String>,
+        proxy_username: Option<String>,
+        proxy_password: Option<String>,
+    ) -> Self {
+        let mut builder = Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
             // Connection pooling — reuse connections for multiple requests
             .pool_idle_timeout(Some(Duration::from_secs(90)))
@@ -33,9 +40,27 @@ impl DeepSeekClient {
             .user_agent(concat!(
                 "deepseek-rust-cli/",
                 env!("CARGO_PKG_VERSION")
-            ))
-            .build()
-            .unwrap_or_else(|_| Client::new());
+            ));
+
+        // Apply proxy configuration if provided
+        if let Some(ref proxy_url) = proxy_url {
+            let mut proxy = match reqwest::Proxy::all(proxy_url) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!("Invalid proxy URL '{}': {}", proxy_url, e);
+                    reqwest::Proxy::custom(|_url| None::<reqwest::Url>)
+                }
+            };
+
+            if let (Some(user), Some(pass)) = (&proxy_username, &proxy_password) {
+                proxy = proxy.basic_auth(user, pass);
+            }
+
+            tracing::info!("Using proxy: {}", proxy_url);
+            builder = builder.proxy(proxy);
+        }
+
+        let client = builder.build().unwrap_or_else(|_| Client::new());
 
         Self {
             client,

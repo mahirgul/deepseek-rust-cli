@@ -9,6 +9,12 @@ pub struct Config {
     pub model: String,
     pub base_url: String,
     pub request_timeout: u64,
+    #[serde(default)]
+    pub proxy_url: Option<String>,
+    #[serde(default)]
+    pub proxy_username: Option<String>,
+    #[serde(default)]
+    pub proxy_password: Option<String>,
     pub temperature: f32,
     pub top_p: f32,
     pub presence_penalty: f32,
@@ -41,6 +47,9 @@ impl Default for Config {
                                                    * user */
             base_url: "https://api.deepseek.com".to_string(),
             request_timeout: 6000, // 100 minutes
+            proxy_url: None,
+            proxy_username: None,
+            proxy_password: None,
             temperature: 0.0,
             top_p: 1.0,
             presence_penalty: 0.0,
