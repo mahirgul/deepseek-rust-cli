@@ -50,18 +50,16 @@ jobs:
         with:
           targets: ${{ matrix.platform.target }}
 
-      - name: Install cross (for ARM64 Linux)
+      - name: Build (cross)
         if: matrix.platform.use-cross
-        run: cargo install cross
+        uses: cross-rs/cross@v0
+        with:
+          command: build
+          args: --release --target ${{ matrix.platform.target }}
 
-      - name: Build
-        run: |
-          if [ "${{ matrix.platform.use-cross }}" = "true" ]; then
-            cross build --release --target ${{ matrix.platform.target }}
-          else
-            cargo build --release --target ${{ matrix.platform.target }}
-          fi
-        shell: bash
+      - name: Build (native)
+        if: ${{ !matrix.platform.use-cross }}
+        run: cargo build --release --target ${{ matrix.platform.target }}
 
       - name: Package
         shell: bash
