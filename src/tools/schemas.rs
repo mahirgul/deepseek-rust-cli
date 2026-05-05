@@ -110,6 +110,17 @@ pub fn get_tools_schemas() -> Vec<Tool> {
             }),
             vec!["path"],
         ),
+        create_tool(
+            "search_files",
+            "Search files for a text pattern using native Rust (no shell process needed). Fast parallel search with regex support.",
+            json!({
+                "query": { "type": "string" },
+                "path": { "type": "string" },
+                "glob": { "type": "string" },
+                "max_results": { "type": "integer" }
+            }),
+            vec!["query"],
+        ),
         // ─── Code & Web ─────────────────────────────────────────
         create_tool(
             "run_python_code",

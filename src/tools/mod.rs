@@ -30,6 +30,7 @@ pub fn get_all_tools() -> Vec<Box<dyn Tool>> {
         Box::new(file_tools::DiffFilesTool),
         Box::new(file_tools::HashFileTool),
         Box::new(file_tools::CountLinesTool),
+        Box::new(file_tools::SearchFilesTool),
         // System Tools
         Box::new(system_tools::ShellTool),
         Box::new(system_tools::SystemInfoTool),

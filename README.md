@@ -11,7 +11,7 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 ## ✨ Features
 
 - **🧠 Advanced Reasoning:** Real-time display of the model's thinking process (DeepSeek Reasoning).
-- **🛠️ Extensible Toolset:** 34+ tools managed by a trait-based registry system for reliable and fast execution.
+- **🛠️ Extensible Toolset:** 35+ tools managed by a trait-based registry system for reliable and fast execution.
 - **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands update the agent's environment state.
 - **🎨 Rich TUI Engine:** 
   - **4-Line Dynamic Footer:** Real-time status, folder info, token usage, and command queue.

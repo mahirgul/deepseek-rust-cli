@@ -271,3 +271,29 @@ impl Tool for CountLinesTool {
         tools::file_ops::count_lines(path).await
     }
 }
+
+pub struct SearchFilesTool;
+#[async_trait]
+impl Tool for SearchFilesTool {
+    fn name(&self) -> &str {
+        "search_files"
+    }
+    async fn execute(
+        &self,
+        args: &HashMap<String, Value>,
+        _undo: &mut Vec<UndoAction>,
+        _cwd: Option<&Path>,
+    ) -> Result<String> {
+        let query = args
+            .get("query")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Missing 'query'"))?;
+        let path = args.get("path").and_then(|v| v.as_str());
+        let glob = args.get("glob").and_then(|v| v.as_str());
+        let max = args
+            .get("max_results")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(50) as usize;
+        tools::file_io::search_files(query, path, glob, max).await
+    }
+}
