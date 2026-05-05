@@ -170,11 +170,22 @@ main() {
         success "Successfully installed ${BOLD}$BIN_NAME${NC} to ${BOLD}$INSTALL_DIR${NC}"
         echo ""
         info "Run '${BOLD}deepseek-rust-cli${NC}' to start"
-        info "Make sure to set ${BOLD}DEEPSEEK_API_KEY${NC} in ~/.deep/.env"
     else
         warn "Binary installed but not in PATH."
         info "Add this to your shell config:"
         info "  export PATH=\"$INSTALL_DIR:\$PATH\""
+    fi
+
+    # ── Optional: set API key ─────────────────────────
+    echo ""
+    read -r -p "Set DEEPSEEK_API_KEY now? (y/N) " set_key
+    if [ "$set_key" = "y" ] || [ "$set_key" = "Y" ]; then
+        read -r -p "Enter your DeepSeek API key: " api_key
+        if [ -n "$api_key" ]; then
+            mkdir -p ~/.deep
+            echo "DEEPSEEK_API_KEY=$api_key" >> ~/.deep/.env
+            success "API key saved to ~/.deep/.env"
+        fi
     fi
 
     echo ""
