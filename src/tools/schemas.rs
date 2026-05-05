@@ -112,8 +112,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
         ),
         create_tool(
             "search_files",
-            "Search files for a text pattern using native Rust (no shell process needed). \
-             Fast parallel search with regex support.",
+            "Search files for a text pattern using native Rust (no shell process needed). Fast \
+             parallel search with regex support.",
             json!({
                 "query": { "type": "string" },
                 "path": { "type": "string" },
