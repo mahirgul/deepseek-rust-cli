@@ -635,17 +635,16 @@ impl DeepSeekAgent {
             }
 
             match self.messages[idx].role.as_str() {
-                "assistant" => {
+                "assistant" if self.messages[idx].tool_calls.is_some() => {
                     // If this assistant has tool_calls, also remove the
                     // following tool messages that belong to it.
-                    if self.messages[idx].tool_calls.is_some() {
-                        let mut j = idx + 1;
-                        while j < self.messages.len() && self.messages[j].role == "tool" {
-                            j += 1;
-                        }
-                        remove_count = j - idx;
+                    let mut j = idx + 1;
+                    while j < self.messages.len() && self.messages[j].role == "tool" {
+                        j += 1;
                     }
+                    remove_count = j - idx;
                 }
+                "assistant" => {}
                 "tool" => {
                     // This tool message belongs to the preceding assistant.
                     // Remove the assistant too to keep pairing intact.
