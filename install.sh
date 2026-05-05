@@ -111,9 +111,7 @@ verify_checksum() {
 # ─── Main ──────────────────────────────────────────────────
 main() {
     echo ""
-    echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}${CYAN}║   DeepSeek Rust CLI - Installer              ║${NC}"
-    echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════╝${NC}"
+    echo -e "${BOLD}${CYAN}DeepSeek Rust CLI - Installer${NC}"
     echo ""
 
     check_deps

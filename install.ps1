@@ -37,9 +37,7 @@ function Get-Platform {
 
 function Main {
     Write-Host ""
-    Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║   DeepSeek Rust CLI - Windows Installer      ║" -ForegroundColor Cyan
-    Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "DeepSeek Rust CLI - Windows Installer" -ForegroundColor Cyan
     Write-Host ""
 
     $platform = Get-Platform
