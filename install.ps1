@@ -6,6 +6,10 @@ param (
     [string]$InstallDir = "$env:USERPROFILE\.deepseek-cli\bin"
 )
 
+# UTF-8 encoding - fix garbled characters on Windows
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 $repo = "mahirgul/deepseek-rust-cli"
 $binName = "deepseek-rust-cli.exe"
 $ErrorActionPreference = "Stop"
