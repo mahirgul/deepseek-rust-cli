@@ -6,34 +6,35 @@ param (
     [string]$InstallDir = "$env:USERPROFILE\.deepseek-cli\bin"
 )
 
-# UTF-8 encoding - fix garbled characters on Windows
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
-
-$repo = "mahirgul/deepseek-rust-cli"
-$binName = "deepseek-rust-cli.exe"
 $ErrorActionPreference = "Stop"
 
-# ─── Color Helpers ─────────────────────────────────────────
-function Write-Info    { Write-Host "[INFO]  $args" -ForegroundColor Cyan }
-function Write-Success { Write-Host "[OK]    $args" -ForegroundColor Green }
-function Write-Warn    { Write-Host "[WARN]  $args" -ForegroundColor Yellow }
-function Write-Error   { Write-Host "[ERROR] $args" -ForegroundColor Red }
+$REPO      = "mahirgul/deepseek-rust-cli"
+$BIN_NAME  = "deepseek-rust-cli"
+$EXE_NAME  = "$BIN_NAME.exe"
 
-# ─── Detect Architecture ───────────────────────────────────
+# ─── Helpers ────────────────────────────────────────────────
+
+function Write-Info    { Write-Host "[INFO]  $($args -join ' ')" -ForegroundColor Cyan   }
+function Write-Success { Write-Host "[OK]    $($args -join ' ')" -ForegroundColor Green  }
+function Write-Warn    { Write-Host "[WARN]  $($args -join ' ')" -ForegroundColor Yellow }
+function Write-Error   { Write-Host "[ERROR] $($args -join ' ')" -ForegroundColor Red    }
+
 function Get-Platform {
     $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-    if ($arch -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
+    if ($arch -eq "Arm64") {
         return "windows-arm64"
-    }
-    if ($arch -eq [System.Runtime.InteropServices.Architecture]::X64) {
+    } elseif ($arch -eq "X64") {
         return "windows-x86_64"
+    } else {
+        Write-Error "Unsupported architecture: $arch"
+        exit 1
     }
-    Write-Error "Unsupported architecture: $arch"
-    exit 1
 }
 
 # ─── Main ──────────────────────────────────────────────────
+
 function Main {
     Write-Host ""
     Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
@@ -44,99 +45,111 @@ function Main {
     $platform = Get-Platform
     Write-Info "Detected platform: $platform"
 
-    # Get latest release
+    # ── Resolve latest version ─────────────────────────
     Write-Info "Fetching latest release..."
     try {
-        $latestRelease = (Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -TimeoutSec 10).tag_name
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$REPO/releases/latest" -TimeoutSec 10
+        $latestTag = $release.tag_name
     } catch {
         Write-Error "Could not fetch latest release: $_"
         exit 1
     }
 
-    if (-not $latestRelease) {
-        Write-Error "Could not find latest release for $repo"
+    if (-not $latestTag) {
+        Write-Error "No release found for $REPO"
         exit 1
     }
-    Write-Info "Latest version: $latestRelease"
+    Write-Info "Latest version: $latestTag"
 
-    # Download
-    $archiveName = "$binName-$platform.zip" -replace '\.exe-', '-'
-    $downloadUrl = "https://github.com/$repo/releases/download/$latestRelease/$archiveName"
-    $checksumUrl = "$downloadUrl.sha256"
+    # ── Build URLs ────────────────────────────────────
+    $archiveName  = "$BIN_NAME-$platform.zip"
+    $downloadUrl  = "https://github.com/$REPO/releases/download/$latestTag/$archiveName"
+    $checksumUrl  = "$downloadUrl.sha256"
 
-    $tempDir = Join-Path $env:TEMP "deepseek-rust-cli-install"
+    # ── Create temp workspace ─────────────────────────
+    $tempDir = Join-Path $env:TEMP "deepseek-cli-$PID"
     New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
     $zipFile = Join-Path $tempDir $archiveName
 
+    # ── Download ──────────────────────────────────────
     Write-Info "Downloading $archiveName..."
     try {
         Invoke-WebRequest -Uri $downloadUrl -OutFile $zipFile -TimeoutSec 60
     } catch {
         Write-Error "Download failed: $_"
+        Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
         exit 1
     }
 
-    # Checksum verification
+    # ── Verify checksum ───────────────────────────────
     if (-not $SkipChecksum) {
         try {
             $expectedSha = (Invoke-RestMethod -Uri $checksumUrl -TimeoutSec 10).Split(' ')[0]
-            $actualSha = (Get-FileHash -Path $zipFile -Algorithm SHA256).Hash.ToLower()
+            $actualSha   = (Get-FileHash -Path $zipFile -Algorithm SHA256).Hash.ToLower()
+
             if ($actualSha -eq $expectedSha) {
                 Write-Success "Checksum verified"
             } else {
-                Write-Error "Checksum FAILED! Expected: $expectedSha, Got: $actualSha"
-                Write-Warn "Use -SkipChecksum to bypass verification"
+                Write-Error "Checksum mismatch! Expected: $expectedSha, Got: $actualSha"
+                Write-Warn "Re-run with -SkipChecksum to bypass verification (not recommended)"
+                Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
                 exit 1
             }
         } catch {
             Write-Warn "Could not verify checksum: $_"
         }
+    } else {
+        Write-Warn "Checksum verification skipped"
     }
 
-    # Extract
+    # ── Extract ───────────────────────────────────────
     Write-Info "Extracting..."
     Expand-Archive -Path $zipFile -DestinationPath $tempDir -Force
 
-    # Install
+    # ── Locate binary in extracted contents ───────────
+    $exe = Get-ChildItem -Path $tempDir -Filter $EXE_NAME -Recurse | Select-Object -First 1
+    if (-not $exe) {
+        Write-Error "Could not find $EXE_NAME in downloaded archive"
+        Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
+        exit 1
+    }
+
+    # ── Install ───────────────────────────────────────
     if (-not (Test-Path $InstallDir)) {
         New-Item -Path $InstallDir -ItemType Directory -Force | Out-Null
     }
 
-    $sourceExe = Get-ChildItem -Path $tempDir -Filter "*.exe" -Recurse | Select-Object -First 1
-    if (-not $sourceExe) {
-        Write-Error "Could not find .exe in archive"
-        exit 1
-    }
+    Copy-Item -Path $exe.FullName -Destination $InstallDir -Force
+    Write-Success "Copied $EXE_NAME to $InstallDir"
 
-    Copy-Item -Path $sourceExe.FullName -Destination $InstallDir -Force
-
-    # Add to PATH
+    # ── Update PATH ───────────────────────────────────
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if (-not $userPath) { $userPath = "" }
     if ($userPath -notlike "*$InstallDir*") {
         Write-Info "Adding to user PATH..."
         [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
-        $env:Path += ";$InstallDir"
+        $env:Path = "$env:Path;$InstallDir"
         Write-Success "Added $InstallDir to PATH"
         Write-Warn "Please restart your terminal for PATH changes to take effect"
     }
 
-    # Cleanup
-    Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    # ── Cleanup ───────────────────────────────────────
+    Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
 
-    Write-Success "Successfully installed deepseek-rust-cli to $InstallDir"
+    Write-Success "deepseek-rust-cli installed successfully!"
     Write-Host ""
     Write-Info "Run 'deepseek-rust-cli' to start"
-    Write-Info "Make sure to set DEEPSEEK_API_KEY environment variable"
+    Write-Info "Set DEEPSEEK_API_KEY environment variable before use"
 
-    # Offer to set API key
+    # ── Optional: set API key ─────────────────────────
     $setKey = Read-Host "`nSet DEEPSEEK_API_KEY now? (y/N)"
-    if ($setKey -eq 'y' -or $setKey -eq 'Y') {
+    if ($setKey -match '^[yY]') {
         $apiKey = Read-Host "Enter your DeepSeek API key"
         if ($apiKey) {
             [Environment]::SetEnvironmentVariable("DEEPSEEK_API_KEY", $apiKey, "User")
             $env:DEEPSEEK_API_KEY = $apiKey
-            Write-Success "API key set for current user"
+            Write-Success "API key saved"
         }
     }
 
