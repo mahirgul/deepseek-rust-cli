@@ -193,7 +193,12 @@ pub async fn search_files(
                 if re.is_match(line) {
                     // Truncate long lines
                     let display = if line.len() > 300 {
-                        format!("{}...", &line[..300])
+                        let truncate_at = line
+                            .char_indices()
+                            .nth(300)
+                            .map(|(i, _)| i)
+                            .unwrap_or(line.len());
+                        format!("{}...", &line[..truncate_at])
                     } else {
                         line.to_string()
                     };

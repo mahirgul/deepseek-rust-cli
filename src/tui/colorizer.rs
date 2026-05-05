@@ -925,7 +925,12 @@ pub fn truncate_result(result: &str, max_chars: usize) -> String {
         return result.to_string();
     }
     // Try to break at a newline
-    let truncated = &result[..max_chars];
+    let truncate_at = result
+        .char_indices()
+        .nth(max_chars)
+        .map(|(i, _)| i)
+        .unwrap_or(result.len());
+    let truncated = &result[..truncate_at];
     if let Some(last_nl) = truncated.rfind('\n') {
         if last_nl > max_chars / 2 {
             return format!(

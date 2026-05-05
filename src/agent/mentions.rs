@@ -30,7 +30,12 @@ pub fn process_mentions(text: &str) -> String {
         if validated_path.exists() && validated_path.is_file() {
             if let Ok(content) = fs::read_to_string(&validated_path) {
                 let trimmed = if content.len() > 50000 {
-                    format!("{}... (truncated)", &content[..50000])
+                    let truncate_at = content
+                        .char_indices()
+                        .nth(50000)
+                        .map(|(i, _)| i)
+                        .unwrap_or(content.len());
+                    format!("{}... (truncated)", &content[..truncate_at])
                 } else {
                     content
                 };

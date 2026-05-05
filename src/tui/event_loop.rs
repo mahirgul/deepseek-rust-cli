@@ -882,7 +882,9 @@ fn format_tool_args(name: &str, args: &str) -> String {
                         .and_then(|v| v.as_str())
                         .map(|s| {
                             if s.len() > 60 {
-                                format!("{}...", &s[..60])
+                                let truncate_at =
+                                    s.char_indices().nth(60).map(|(i, _)| i).unwrap_or(s.len());
+                                format!("{}...", &s[..truncate_at])
                             } else {
                                 s.to_string()
                             }
