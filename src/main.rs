@@ -65,18 +65,14 @@ async fn main() -> Result<()> {
 
     init_workspace();
 
-    let config = load_config();
-    init_logger(args.debug || config.debug);
-
     let api_key = get_api_key()?;
     let mut config = load_config();
+    init_logger(args.debug || config.debug);
     if args.danger_accept_invalid_certs {
         config.danger_accept_invalid_certs = true;
     }
     let mut agent = DeepSeekAgent::new(api_key, config, args.session);
     agent.auto_approve = args.auto_approve;
-
-    deepseek_rust_cli::updater::check_for_updates_background();
 
     let agent = Arc::new(Mutex::new(agent));
 

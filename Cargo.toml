@@ -1,6 +1,6 @@
 [package]
 name = "deepseek-rust-cli"
-version = "1.13.5"
+version = "1.15.0"
 edition = "2021"
 authors = ["Mahir Gul <mahirgul@gmail.com>"]
 description = "A lightweight, high-speed autonomous CLI system agent port of DeepSeek CLI."
@@ -55,8 +55,6 @@ anyhow = "1.0"
 thiserror = "1.0"
 dirs = "5.0"
 rayon = "1.10"
-dashmap = "6.0"
-arc-swap = "1.7"
 
 
 # Base64
@@ -71,3 +69,10 @@ self_update = "0.44.0"
 tokio-test = "0.4"
 tempfile = "3.10"
 pretty_assertions = "1.4"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
