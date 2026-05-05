@@ -196,20 +196,9 @@ impl EventLoop {
         app_tx: mpsc::Sender<ApprovalResult>,
         cmd_tx: mpsc::Sender<(usize, String)>,
         agent: Arc<Mutex<DeepSeekAgent>>,
+        cancel_token: Arc<std::sync::Mutex<tokio_util::sync::CancellationToken>>,
+        run_id: Arc<std::sync::atomic::AtomicUsize>,
     ) -> Self {
-        // Clone the cancel token from the agent (brief lock)
-        let cancel_token = agent
-            .try_lock()
-            .map(|a| a.cancel_token.clone())
-            .unwrap_or_else(|_| {
-                Arc::new(std::sync::Mutex::new(
-                    tokio_util::sync::CancellationToken::new(),
-                ))
-            });
-        let run_id = agent
-            .try_lock()
-            .map(|a| a.run_id.clone())
-            .unwrap_or_else(|_| Arc::new(std::sync::atomic::AtomicUsize::new(0)));
         Self {
             rx,
             rx_tx,
@@ -259,7 +248,11 @@ impl EventLoop {
             match event {
                 TuiEvent::Abort => {
                     // Cancel via shared token — no agent lock needed, avoids deadlock
-                    self.cancel_token.lock().unwrap().cancel();
+                    if let Ok(token) = self.cancel_token.lock() {
+                        token.cancel();
+                    } else {
+                        tracing::warn!("Cancel token mutex poisoned during abort");
+                    }
                     // Increment run_id to discard any queued operations in cmd_rx
                     self.run_id
                         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -792,12 +785,18 @@ fn truncate_str(s: &str, max_width: usize) -> String {
     }
 }
 
+static ANSI_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+
+fn ansi_re() -> &'static regex::Regex {
+    ANSI_RE.get_or_init(|| regex::Regex::new("\x1b\\[[0-9;]*m").expect("valid ansi regex"))
+}
+
 /// Truncate a string containing ANSI escape codes to visible width limit.
 fn truncate_ansi_str(s: &str, max_width: usize) -> String {
     if max_width == 0 {
         return String::new();
     }
-    let re = regex::Regex::new("\x1b\\[[0-9;]*m").unwrap();
+    let re = ansi_re();
     let mut visible = 0usize;
     let mut result = String::new();
     let mut remaining = s;
@@ -838,7 +837,7 @@ fn truncate_ansi_str(s: &str, max_width: usize) -> String {
 
 /// Strips ANSI escape codes from a string to get visible length.
 fn strip_ansi(s: &str) -> String {
-    let re = regex::Regex::new("\x1b\\[[0-9;]*m").unwrap();
+    let re = ansi_re();
     re.replace_all(s, "").to_string()
 }
 

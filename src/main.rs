@@ -76,6 +76,16 @@ async fn main() -> Result<()> {
 
     let agent = Arc::new(Mutex::new(agent));
 
+    // Extract tokens BEFORE spawning agent task to ensure they match
+    let cancel_token = {
+        let a = agent.try_lock().expect("agent should not be locked yet");
+        a.cancel_token.clone()
+    };
+    let run_id = {
+        let a = agent.try_lock().expect("agent should not be locked yet");
+        a.run_id.clone()
+    };
+
     let (tui_tx, tui_rx) = mpsc::channel(100);
     let (app_tx, mut app_rx) = mpsc::channel(1);
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<(usize, String)>(100);
@@ -91,17 +101,20 @@ async fn main() -> Result<()> {
                 .unwrap_or(Duration::from_secs(0));
 
             if event::poll(timeout).unwrap_or(false) {
-                match event::read().unwrap() {
-                    Event::Key(key) => {
+                match event::read() {
+                    Ok(Event::Key(key)) => {
                         let _ = tui_tx_for_input.send(TuiEvent::Input(key)).await;
                     }
-                    Event::Mouse(mouse) => {
+                    Ok(Event::Mouse(mouse)) => {
                         let _ = tui_tx_for_input.send(TuiEvent::Mouse(mouse)).await;
                     }
-                    Event::Paste(text) => {
+                    Ok(Event::Paste(text)) => {
                         let _ = tui_tx_for_input.send(TuiEvent::Paste(text)).await;
                     }
-                    _ => {}
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::warn!("Input event error: {}", e);
+                    }
                 }
             }
             if last_tick.elapsed() >= tick_rate {
@@ -170,7 +183,12 @@ async fn main() -> Result<()> {
                 .chat_stream(processed_cmd, agent_event_tx.clone(), &mut app_rx)
                 .await;
             // Only send Done if not aborted (Aborted event already sent by chat_stream)
-            if !agent_lock.cancel_token.lock().unwrap().is_cancelled() {
+            if !agent_lock
+                .cancel_token
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .is_cancelled()
+            {
                 let tu = agent_lock.token_usage.clone();
                 let _ = agent_event_tx
                     .send(AgentEvent::Done { token_usage: tu })
@@ -181,7 +199,15 @@ async fn main() -> Result<()> {
     });
 
     // Start TUI
-    let event_loop = EventLoop::new(tui_rx, tui_tx.clone(), app_tx, cmd_tx, agent.clone());
+    let event_loop = EventLoop::new(
+        tui_rx,
+        tui_tx.clone(),
+        app_tx,
+        cmd_tx,
+        agent.clone(),
+        cancel_token,
+        run_id,
+    );
 
     let res = event_loop.run().await;
 

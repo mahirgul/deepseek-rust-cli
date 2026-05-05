@@ -131,18 +131,28 @@ impl DeepSeekAgent {
 
     /// Reset the cancellation token for a new request
     pub fn reset_cancel(&mut self) {
-        let mut token = self.cancel_token.lock().unwrap();
+        let mut token = self.cancel_token.lock().unwrap_or_else(|e| e.into_inner());
         *token = CancellationToken::new();
     }
 
     /// Abort the current streaming request
     pub fn abort(&self) {
-        self.cancel_token.lock().unwrap().cancel();
+        if let Ok(token) = self.cancel_token.lock() {
+            token.cancel();
+        } else {
+            // If mutex is poisoned, the token in its current state is invalid.
+            // Replace it with a fresh cancelled token so subsequent checks see cancelled.
+            // We can't easily replace the Arc'd inner value, so just log.
+            tracing::warn!("Cancel token mutex poisoned during abort");
+        }
     }
 
     /// Check if cancelled (lock-free clone for use in hot loops)
     fn is_cancelled(&self) -> bool {
-        self.cancel_token.lock().unwrap().is_cancelled()
+        self.cancel_token
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_cancelled()
     }
 
     /// Remove incomplete tool-call chain from messages after an abort.
@@ -178,11 +188,16 @@ impl DeepSeekAgent {
         let res = self
             .chat_stream_inner(user_input, tx.clone(), approval_rx)
             .await;
+
+        // If cancelled, clean up orphaned tool messages BEFORE saving,
+        // otherwise malformed history breaks subsequent API calls.
+        if self.is_cancelled() {
+            self.cleanup_aborted_messages();
+        }
         self.save();
 
         // If cancelled, send aborted event
         if self.is_cancelled() {
-            self.cleanup_aborted_messages();
             let _ = tx
                 .send(AgentEvent::Aborted {
                     token_usage: self.token_usage.clone(),
@@ -225,7 +240,11 @@ impl DeepSeekAgent {
                 max_tokens: Some(self.config.max_tokens),
             };
 
-            let cancel_token = self.cancel_token.lock().unwrap().clone();
+            let cancel_token = self
+                .cancel_token
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
 
             let response_res = tokio::select! {
                 res = self.client.chat_completions(
@@ -455,9 +474,15 @@ impl DeepSeekAgent {
                         })
                         .collect();
 
-                let (results, approved_call_indices) = if tool_inputs.len() == 1 {
+                // Execute in parallel (or single, with unified result type)
+                let results: Vec<(usize, Result<String>, Vec<UndoAction>)> = if tool_inputs.len()
+                    == 1
+                {
                     // Single tool - execute directly with cache
-                    let (name, args) = tool_inputs.into_iter().next().unwrap();
+                    let (name, args) = tool_inputs
+                        .into_iter()
+                        .next()
+                        .expect("single tool input must exist");
                     let mut temp_undo = Vec::new();
 
                     // Special handling for 'cd' to keep state
@@ -485,20 +510,19 @@ impl DeepSeekAgent {
                         Some(&self.cwd),
                     )
                     .await;
-                    (vec![(0, result, temp_undo)], vec![0])
+                    vec![(0, result, temp_undo)]
                 } else {
                     // Multiple tools - execute in parallel
-                    let res = execute_tools_parallel(&tool_inputs, Some(self.cwd.clone())).await;
-                    let indices: Vec<usize> = (0..res.len()).collect();
-                    (res, indices)
+                    execute_tools_parallel(&tool_inputs, Some(self.cwd.clone())).await
                 };
 
                 // Notify end and add tool messages
-                for (idx, result, undo_actions) in results {
+                // Each result tuple is (original_tool_index, result, undo_actions)
+                for (tool_idx, result, undo_actions) in results {
                     // Merge undo actions
                     self.undo_stack.extend(undo_actions);
 
-                    let (_orig_idx, tc) = &approved_calls[approved_call_indices[idx]];
+                    let (_orig_idx, tc) = &approved_calls[tool_idx];
                     let result_str = match result {
                         Ok(res) => res,
                         Err(e) => format!("Error: {}", e),
@@ -596,14 +620,68 @@ impl DeepSeekAgent {
             })
             .sum();
 
+        // Remove oldest messages (after system prompt at index 0) while
+        // preserving assistant/tool message pairing. Removing an assistant
+        // with tool_calls also removes its tool results; removing a tool
+        // message also removes its parent assistant.
         while current_chars > max_chars && self.messages.len() > 1 {
-            if self.messages.len() > 1 {
-                let removed = self.messages.remove(1);
-                current_chars -= removed.content.as_deref().unwrap_or("").len()
-                    + removed.reasoning_content.as_deref().unwrap_or("").len();
-            } else {
+            // We always remove starting from index 1 (after system message).
+            // Determine how many consecutive messages to remove as a group.
+            let mut remove_count = 1;
+            let idx = 1;
+
+            if idx >= self.messages.len() {
                 break;
             }
+
+            match self.messages[idx].role.as_str() {
+                "assistant" => {
+                    // If this assistant has tool_calls, also remove the
+                    // following tool messages that belong to it.
+                    if self.messages[idx].tool_calls.is_some() {
+                        let mut j = idx + 1;
+                        while j < self.messages.len() && self.messages[j].role == "tool" {
+                            j += 1;
+                        }
+                        remove_count = j - idx;
+                    }
+                }
+                "tool" => {
+                    // This tool message belongs to the preceding assistant.
+                    // Remove the assistant too to keep pairing intact.
+                    // Extend removal forward to include all sibling tool messages.
+                    let mut j = idx + 1;
+                    while j < self.messages.len() && self.messages[j].role == "tool" {
+                        j += 1;
+                    }
+                    // Also remove the preceding assistant
+                    let start = idx - 1; // assistant is just before
+                    remove_count = j - start;
+                    // Drain from `start` instead of `idx`
+                    let mut chars_removed = 0;
+                    for _ in 0..remove_count {
+                        if start < self.messages.len() {
+                            let removed = self.messages.remove(start);
+                            chars_removed += removed.content.as_deref().unwrap_or("").len()
+                                + removed.reasoning_content.as_deref().unwrap_or("").len();
+                        }
+                    }
+                    current_chars -= chars_removed;
+                    continue;
+                }
+                _ => {}
+            }
+
+            // Remove the determined number of messages
+            let mut chars_removed = 0;
+            for _ in 0..remove_count {
+                if idx < self.messages.len() {
+                    let removed = self.messages.remove(idx);
+                    chars_removed += removed.content.as_deref().unwrap_or("").len()
+                        + removed.reasoning_content.as_deref().unwrap_or("").len();
+                }
+            }
+            current_chars -= chars_removed;
         }
     }
 
@@ -629,16 +707,14 @@ impl DeepSeekAgent {
                             let _ = std::fs::write(&action.path, backup);
                             format!("✅ Undone {}: Restored {}", action.r#type, action.path)
                         }
+                    } else if action.r#type == "write" || action.r#type == "replace" {
+                        let _ = std::fs::remove_file(&action.path);
+                        format!(
+                            "✅ Undone {}: Deleted new file {}",
+                            action.r#type, action.path
+                        )
                     } else {
-                        if action.r#type == "write" || action.r#type == "replace" {
-                            let _ = std::fs::remove_file(&action.path);
-                            format!(
-                                "✅ Undone {}: Deleted new file {}",
-                                action.r#type, action.path
-                            )
-                        } else {
-                            "❌ Undo failed: No backup available.".to_string()
-                        }
+                        "❌ Undo failed: No backup available.".to_string()
                     }
                 }
                 "rename" => {

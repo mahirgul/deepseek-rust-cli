@@ -19,18 +19,27 @@ jobs:
             runs-on: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             bin: deepseek-rust-cli
+            use-cross: false
+          - os: linux-aarch64
+            runs-on: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            bin: deepseek-rust-cli
+            use-cross: true
           - os: windows-x86_64
             runs-on: windows-latest
             target: x86_64-pc-windows-msvc
             bin: deepseek-rust-cli.exe
+            use-cross: false
           - os: macos-x86_64
             runs-on: macos-latest
             target: x86_64-apple-darwin
             bin: deepseek-rust-cli
+            use-cross: false
           - os: macos-aarch64
             runs-on: macos-latest
             target: aarch64-apple-darwin
             bin: deepseek-rust-cli
+            use-cross: false
 
     steps:
       - name: Checkout
@@ -41,8 +50,18 @@ jobs:
         with:
           targets: ${{ matrix.platform.target }}
 
+      - name: Install cross (for ARM64 Linux)
+        if: matrix.platform.use-cross
+        run: cargo install cross
+
       - name: Build
-        run: cargo build --release --target ${{ matrix.platform.target }}
+        run: |
+          if [ "${{ matrix.platform.use-cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.platform.target }}
+          else
+            cargo build --release --target ${{ matrix.platform.target }}
+          fi
+        shell: bash
 
       - name: Package
         shell: bash
