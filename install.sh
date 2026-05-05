@@ -178,9 +178,10 @@ main() {
 
     # ── Optional: set API key ─────────────────────────
     echo ""
-    read -r -p "Set DEEPSEEK_API_KEY now? (y/N) " set_key
+    # Read from /dev/tty to work when piped (curl ... | bash)
+    read -r -p "Set DEEPSEEK_API_KEY now? (y/N) " set_key < /dev/tty
     if [ "$set_key" = "y" ] || [ "$set_key" = "Y" ]; then
-        read -r -p "Enter your DeepSeek API key: " api_key
+        read -r -p "Enter your DeepSeek API key: " api_key < /dev/tty
         if [ -n "$api_key" ]; then
             mkdir -p ~/.deep
             echo "DEEPSEEK_API_KEY=$api_key" >> ~/.deep/.env
