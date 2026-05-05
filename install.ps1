@@ -18,17 +18,14 @@ function Write-Error   { Write-Host "[ERROR] $args" -ForegroundColor Red }
 
 # ─── Detect Architecture ───────────────────────────────────
 function Get-Platform {
-    $arch = (Get-WmiObject Win32_Processor).Architecture
-    if ($arch -eq 9) {
-        # ARM64
-        if ([Environment]::Is64BitOperatingSystem) {
-            return "windows-arm64"
-        }
+    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+    if ($arch -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
+        return "windows-arm64"
     }
-    if ([Environment]::Is64BitOperatingSystem) {
+    if ($arch -eq [System.Runtime.InteropServices.Architecture]::X64) {
         return "windows-x86_64"
     }
-    Write-Error "32-bit Windows is not supported"
+    Write-Error "Unsupported architecture: $arch"
     exit 1
 }
 
