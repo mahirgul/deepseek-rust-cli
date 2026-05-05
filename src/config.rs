@@ -15,6 +15,8 @@ pub struct Config {
     pub proxy_username: Option<String>,
     #[serde(default)]
     pub proxy_password: Option<String>,
+    #[serde(default)]
+    pub danger_accept_invalid_certs: bool,
     pub temperature: f32,
     pub top_p: f32,
     pub presence_penalty: f32,
@@ -50,6 +52,7 @@ impl Default for Config {
             proxy_url: None,
             proxy_username: None,
             proxy_password: None,
+            danger_accept_invalid_certs: false,
             temperature: 0.0,
             top_p: 1.0,
             presence_penalty: 0.0,

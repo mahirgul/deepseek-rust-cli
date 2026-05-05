@@ -20,6 +20,7 @@ impl DeepSeekClient {
         proxy_url: Option<String>,
         proxy_username: Option<String>,
         proxy_password: Option<String>,
+        danger_accept_invalid_certs: bool,
     ) -> Self {
         let mut builder = Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
@@ -41,6 +42,14 @@ impl DeepSeekClient {
                 "deepseek-rust-cli/",
                 env!("CARGO_PKG_VERSION")
             ));
+
+        // Accept invalid TLS certs (for corporate proxies / MITM appliances)
+        if danger_accept_invalid_certs {
+            tracing::warn!(
+                "DANGER: Accepting invalid TLS certificates (--danger-accept-invalid-certs)"
+            );
+            builder = builder.danger_accept_invalid_certs(true);
+        }
 
         // Apply proxy configuration if provided
         if let Some(ref proxy_url) = proxy_url {
@@ -127,7 +136,13 @@ impl DeepSeekClient {
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Network error on attempt {}: {}", attempt + 1, e);
+                    tracing::error!("Network error on attempt {}: {:#}", attempt + 1, e);
+                    if e.is_timeout() {
+                        tracing::error!("Connection timed out");
+                    }
+                    if e.is_connect() {
+                        tracing::error!("Connection failed (DNS/TLS/refused)");
+                    }
                     last_err = Some(anyhow::anyhow!("Network Error: {}", e));
                     continue;
                 }

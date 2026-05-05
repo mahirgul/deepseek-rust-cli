@@ -117,6 +117,7 @@ impl DeepSeekAgent {
                 config.proxy_url.clone(),
                 config.proxy_username.clone(),
                 config.proxy_password.clone(),
+                config.danger_accept_invalid_certs,
             )),
             model: config.model.clone(),
             session_id: sid,

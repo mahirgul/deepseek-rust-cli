@@ -19,6 +19,10 @@ pub struct Args {
     #[arg(short, long)]
     pub auto_approve: bool,
 
+    /// Accept invalid TLS certificates (for corporate proxies / MITM appliances)
+    #[arg(long)]
+    pub danger_accept_invalid_certs: bool,
+
     /// Generate shell completions
     #[arg(long, value_enum)]
     pub generate_completion: Option<ShellType>,

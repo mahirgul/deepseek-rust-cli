@@ -69,6 +69,10 @@ async fn main() -> Result<()> {
     init_logger(args.debug || config.debug);
 
     let api_key = get_api_key()?;
+    let mut config = load_config();
+    if args.danger_accept_invalid_certs {
+        config.danger_accept_invalid_certs = true;
+    }
     let mut agent = DeepSeekAgent::new(api_key, config, args.session);
     agent.auto_approve = args.auto_approve;
 
