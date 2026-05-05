@@ -13,6 +13,7 @@ jobs:
     name: Build - ${{ matrix.platform.os }}
     runs-on: ${{ matrix.platform.runs-on }}
     strategy:
+      fail-fast: false
       matrix:
         platform:
           - os: linux-x86_64
@@ -50,16 +51,20 @@ jobs:
         with:
           targets: ${{ matrix.platform.target }}
 
-      - name: Build (cross)
+      - name: Install cross (for ARM64 Linux)
         if: matrix.platform.use-cross
-        uses: cross-rs/cross@v0
-        with:
-          command: build
-          args: --release --target ${{ matrix.platform.target }}
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall --no-confirm cross
 
-      - name: Build (native)
-        if: ${{ !matrix.platform.use-cross }}
-        run: cargo build --release --target ${{ matrix.platform.target }}
+      - name: Build
+        run: |
+          if [ "${{ matrix.platform.use-cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.platform.target }}
+          else
+            cargo build --release --target ${{ matrix.platform.target }}
+          fi
+        shell: bash
 
       - name: Package
         shell: bash
