@@ -19,7 +19,7 @@ use crate::{
         types::{Message, TokenUsage, ToolCall},
     },
     config::Config,
-    tools::schemas::get_tools_schemas,
+    tools::schemas::get_filtered_tools_schemas,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -85,6 +85,9 @@ pub struct DeepSeekAgent {
     pub cancel_token: Arc<std::sync::Mutex<CancellationToken>>,
     pub run_id: Arc<std::sync::atomic::AtomicUsize>,
     pub cwd: std::path::PathBuf,
+    /// Cached context detection for dynamic tool filtering
+    pub is_git_repo: bool,
+    pub has_github_token: bool,
 }
 
 impl DeepSeekAgent {
@@ -130,6 +133,8 @@ impl DeepSeekAgent {
             run_id: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             cwd: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             tool_cache: HashMap::new(),
+            is_git_repo: std::path::Path::new(".git").exists(),
+            has_github_token: std::env::var("GITHUB_TOKEN").is_ok(),
         }
     }
 
@@ -260,7 +265,7 @@ impl DeepSeekAgent {
                 res = self.client.chat_completions(
                     &self.model,
                     self.messages.clone(),
-                    Some(get_tools_schemas()),
+                    Some(get_filtered_tools_schemas(self.is_git_repo, self.has_github_token)),
                     options,
                 ) => res,
                 _ = cancel_token.cancelled() => {

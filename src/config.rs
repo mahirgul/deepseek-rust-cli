@@ -57,7 +57,7 @@ impl Default for Config {
             top_p: 1.0,
             presence_penalty: 0.0,
             frequency_penalty: 0.0,
-            max_tokens: 393_216, // API max
+            max_tokens: 16_384, // 16K — sufficient for practical use; saves completion tokens
             max_iterations: 500,
             show_token_usage: true,
             concise_reasoning: true,

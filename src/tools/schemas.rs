@@ -2,161 +2,176 @@ use serde_json::json;
 
 use crate::api::types::Tool;
 
+/// Full unfiltered tool list (used when context detection isn't available).
 pub fn get_tools_schemas() -> Vec<Tool> {
-    vec![
-        // ─── Shell & System ──────────────────────────────────────
-        create_tool(
-            "execute_shell_command",
-            "Execute a shell command.",
-            json!({
-                "command": { "type": "string" },
-                "is_background": { "type": "boolean" }
-            }),
-            vec!["command"],
-        ),
-        create_tool(
-            "get_system_info",
-            "Get system information.",
-            json!({}),
-            vec![],
-        ),
-        // ─── File I/O ────────────────────────────────────────────
-        create_tool(
-            "read_local_file",
-            "Read a local file.",
-            json!({
-                "file_path": { "type": "string" },
-                "start_line": { "type": "integer" },
-                "end_line": { "type": "integer" }
-            }),
-            vec!["file_path"],
-        ),
-        create_tool(
-            "write_local_file",
-            "Write to a local file.",
-            json!({
-                "file_path": { "type": "string" },
-                "content": { "type": "string" }
-            }),
-            vec!["file_path", "content"],
-        ),
-        create_tool(
-            "replace_text_in_file",
-            "Replace text in a file.",
-            json!({
-                "file_path": { "type": "string" },
-                "old_text": { "type": "string" },
-                "new_text": { "type": "string" }
-            }),
-            vec!["file_path", "old_text", "new_text"],
-        ),
-        create_tool(
-            "list_directory",
-            "List directory contents.",
-            json!({
-                "path": { "type": "string" }
-            }),
-            vec![],
-        ),
-        create_tool(
-            "tree_view",
-            "Show directory tree.",
-            json!({
-                "path": { "type": "string" },
-                "max_depth": { "type": "integer" }
-            }),
-            vec![],
-        ),
-        create_tool(
-            "delete_file",
-            "Delete a file or directory.",
-            json!({
-                "file_path": { "type": "string" }
-            }),
-            vec!["file_path"],
-        ),
-        create_tool(
-            "rename_file",
-            "Rename or move a file.",
-            json!({
-                "source_path": { "type": "string" },
-                "destination_path": { "type": "string" }
-            }),
-            vec!["source_path", "destination_path"],
-        ),
-        create_tool(
-            "diff_files",
-            "Compare two files.",
-            json!({
-                "file1": { "type": "string" },
-                "file2": { "type": "string" }
-            }),
-            vec!["file1", "file2"],
-        ),
-        create_tool(
-            "hash_file",
-            "Calculate file hash.",
-            json!({
-                "path": { "type": "string" },
-                "algorithm": { "type": "string", "enum": ["sha256", "md5"] }
-            }),
-            vec!["path"],
-        ),
-        create_tool(
-            "count_lines",
-            "Count lines, words and characters in a file.",
-            json!({
-                "path": { "type": "string" }
-            }),
-            vec!["path"],
-        ),
-        create_tool(
-            "search_files",
-            "Search files for a text pattern using native Rust (no shell process needed). Fast \
-             parallel search with regex support.",
-            json!({
-                "query": { "type": "string" },
-                "path": { "type": "string" },
-                "glob": { "type": "string" },
-                "max_results": { "type": "integer" }
-            }),
-            vec!["query"],
-        ),
-        // ─── Code & Web ─────────────────────────────────────────
-        create_tool(
-            "run_python_code",
-            "Execute Python code snippet.",
-            json!({
-                "code": { "type": "string" }
-            }),
-            vec!["code"],
-        ),
-        create_tool(
-            "fetch_url",
-            "Fetch and clean content from a URL.",
-            json!({
-                "url": { "type": "string" }
-            }),
-            vec!["url"],
-        ),
-        create_tool(
-            "get_env_var",
-            "Read an environment variable.",
-            json!({
-                "name": { "type": "string" }
-            }),
-            vec!["name"],
-        ),
-        // ─── Local Git Operations ───────────────────────────────
-        create_tool(
+    get_filtered_tools_schemas(true, true)
+}
+
+/// Return tool schemas filtered by context:
+/// - `is_git_repo`: include local git tools (status, diff, commit, push, etc.)
+/// - `has_github_token`: include GitHub API tools
+///
+/// Core tools (shell, file I/O, code/web) are always included.
+pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> Vec<Tool> {
+    let mut tools = Vec::with_capacity(40);
+
+    // ─── Shell & System (always) ────────────────────────────
+    tools.push(create_tool(
+        "execute_shell_command",
+        "Execute a shell command.",
+        json!({
+            "command": { "type": "string" },
+            "is_background": { "type": "boolean" }
+        }),
+        vec!["command"],
+    ));
+    tools.push(create_tool(
+        "get_system_info",
+        "Get system information.",
+        json!({}),
+        vec![],
+    ));
+
+    // ─── File I/O (always) ──────────────────────────────────
+    tools.push(create_tool(
+        "read_local_file",
+        "Read a local file.",
+        json!({
+            "file_path": { "type": "string" },
+            "start_line": { "type": "integer" },
+            "end_line": { "type": "integer" }
+        }),
+        vec!["file_path"],
+    ));
+    tools.push(create_tool(
+        "write_local_file",
+        "Write to a local file.",
+        json!({
+            "file_path": { "type": "string" },
+            "content": { "type": "string" }
+        }),
+        vec!["file_path", "content"],
+    ));
+    tools.push(create_tool(
+        "replace_text_in_file",
+        "Replace text in a file.",
+        json!({
+            "file_path": { "type": "string" },
+            "old_text": { "type": "string" },
+            "new_text": { "type": "string" }
+        }),
+        vec!["file_path", "old_text", "new_text"],
+    ));
+    tools.push(create_tool(
+        "list_directory",
+        "List directory contents.",
+        json!({
+            "path": { "type": "string" }
+        }),
+        vec![],
+    ));
+    tools.push(create_tool(
+        "tree_view",
+        "Show directory tree.",
+        json!({
+            "path": { "type": "string" },
+            "max_depth": { "type": "integer" }
+        }),
+        vec![],
+    ));
+    tools.push(create_tool(
+        "delete_file",
+        "Delete a file or directory.",
+        json!({
+            "file_path": { "type": "string" }
+        }),
+        vec!["file_path"],
+    ));
+    tools.push(create_tool(
+        "rename_file",
+        "Rename or move a file.",
+        json!({
+            "source_path": { "type": "string" },
+            "destination_path": { "type": "string" }
+        }),
+        vec!["source_path", "destination_path"],
+    ));
+    tools.push(create_tool(
+        "diff_files",
+        "Compare two files.",
+        json!({
+            "file1": { "type": "string" },
+            "file2": { "type": "string" }
+        }),
+        vec!["file1", "file2"],
+    ));
+    tools.push(create_tool(
+        "hash_file",
+        "Calculate file hash.",
+        json!({
+            "path": { "type": "string" },
+            "algorithm": { "type": "string", "enum": ["sha256", "md5"] }
+        }),
+        vec!["path"],
+    ));
+    tools.push(create_tool(
+        "count_lines",
+        "Count lines, words and characters in a file.",
+        json!({
+            "path": { "type": "string" }
+        }),
+        vec!["path"],
+    ));
+    tools.push(create_tool(
+        "search_files",
+        "Search files for a text pattern using native Rust (no shell process needed). Fast \
+         parallel search with regex support.",
+        json!({
+            "query": { "type": "string" },
+            "path": { "type": "string" },
+            "glob": { "type": "string" },
+            "max_results": { "type": "integer" }
+        }),
+        vec!["query"],
+    ));
+
+    // ─── Code & Web (always) ───────────────────────────────
+    tools.push(create_tool(
+        "run_python_code",
+        "Execute Python code snippet.",
+        json!({
+            "code": { "type": "string" }
+        }),
+        vec!["code"],
+    ));
+    tools.push(create_tool(
+        "fetch_url",
+        "Fetch and clean content from a URL.",
+        json!({
+            "url": { "type": "string" }
+        }),
+        vec!["url"],
+    ));
+    tools.push(create_tool(
+        "get_env_var",
+        "Read an environment variable.",
+        json!({
+            "name": { "type": "string" }
+        }),
+        vec!["name"],
+    ));
+
+    // ─── Local Git Operations (only if in a git repo) ──────
+    if is_git_repo {
+        tools.push(create_tool(
             "git_status",
             "Show git status.",
             json!({
                 "path": { "type": "string" }
             }),
             vec![],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_diff",
             "Show git diff.",
             json!({
@@ -164,8 +179,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "staged": { "type": "boolean" }
             }),
             vec![],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_log",
             "Show git commit history.",
             json!({
@@ -173,8 +188,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "count": { "type": "integer" }
             }),
             vec![],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_branch",
             "List, create, delete, or switch git branches.",
             json!({
@@ -183,8 +198,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "name": { "type": "string" }
             }),
             vec![],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_add",
             "Stage files for commit.",
             json!({
@@ -192,8 +207,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "files": { "type": "string" }
             }),
             vec![],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_commit",
             "Commit staged changes.",
             json!({
@@ -201,8 +216,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "message": { "type": "string" }
             }),
             vec!["message"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_push",
             "Push commits to remote.",
             json!({
@@ -211,8 +226,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "branch": { "type": "string" }
             }),
             vec![],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_pull",
             "Pull changes from remote.",
             json!({
@@ -221,8 +236,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "branch": { "type": "string" }
             }),
             vec![],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_checkout",
             "Checkout branch or file.",
             json!({
@@ -230,8 +245,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "target": { "type": "string" }
             }),
             vec!["target"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_clone",
             "Clone a git repository.",
             json!({
@@ -239,16 +254,16 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "dest": { "type": "string" }
             }),
             vec!["url"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_remote_list",
             "List git remotes.",
             json!({
                 "path": { "type": "string" }
             }),
             vec![],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "git_stash",
             "Stash, pop, or list git stashes.",
             json!({
@@ -256,17 +271,20 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "action": { "type": "string", "enum": ["save", "pop", "list"] }
             }),
             vec![],
-        ),
-        // ─── GitHub API Operations ─────────────────────────────
-        create_tool(
+        ));
+    }
+
+    // ─── GitHub API Operations (only if GITHUB_TOKEN is set)
+    if has_github_token {
+        tools.push(create_tool(
             "github_repo_info",
             "Get GitHub repository information. Requires GITHUB_TOKEN.",
             json!({
                 "repo": { "type": "string" }
             }),
             vec!["repo"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_repo_list_issues",
             "List GitHub issues for a repository.",
             json!({
@@ -275,8 +293,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "limit": { "type": "integer" }
             }),
             vec!["repo"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_issue_create",
             "Create a GitHub issue. Requires GITHUB_TOKEN.",
             json!({
@@ -286,8 +304,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "labels": { "type": "string" }
             }),
             vec!["repo", "title"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_issue_update",
             "Update a GitHub issue. Requires GITHUB_TOKEN.",
             json!({
@@ -298,8 +316,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "state": { "type": "string", "enum": ["open", "closed"] }
             }),
             vec!["repo", "issue_number"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_pr_list",
             "List GitHub pull requests.",
             json!({
@@ -308,8 +326,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "limit": { "type": "integer" }
             }),
             vec!["repo"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_pr_create",
             "Create a GitHub pull request. Requires GITHUB_TOKEN.",
             json!({
@@ -321,8 +339,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "draft": { "type": "boolean" }
             }),
             vec!["repo", "title", "head", "base"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_pr_info",
             "Get detailed information about a pull request.",
             json!({
@@ -330,8 +348,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "pr_number": { "type": "integer" }
             }),
             vec!["repo", "pr_number"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_pr_merge",
             "Merge a GitHub pull request. Requires GITHUB_TOKEN.",
             json!({
@@ -340,8 +358,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "method": { "type": "string", "enum": ["merge", "squash", "rebase"] }
             }),
             vec!["repo", "pr_number"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_search_code",
             "Search code on GitHub. Requires GITHUB_TOKEN.",
             json!({
@@ -350,8 +368,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "limit": { "type": "integer" }
             }),
             vec!["query"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_search_repos",
             "Search GitHub repositories. Requires GITHUB_TOKEN.",
             json!({
@@ -359,8 +377,8 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "limit": { "type": "integer" }
             }),
             vec!["query"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_get_file",
             "Get file content from a GitHub repository.",
             json!({
@@ -369,16 +387,16 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "ref": { "type": "string" }
             }),
             vec!["repo", "path"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_workflow_list",
             "List GitHub Actions workflows.",
             json!({
                 "repo": { "type": "string" }
             }),
             vec!["repo"],
-        ),
-        create_tool(
+        ));
+        tools.push(create_tool(
             "github_workflow_runs",
             "List GitHub Actions workflow runs.",
             json!({
@@ -387,8 +405,10 @@ pub fn get_tools_schemas() -> Vec<Tool> {
                 "limit": { "type": "integer" }
             }),
             vec!["repo"],
-        ),
-    ]
+        ));
+    }
+
+    tools
 }
 
 fn create_tool(name: &str, desc: &str, props: serde_json::Value, required: Vec<&str>) -> Tool {
