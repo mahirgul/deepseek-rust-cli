@@ -15,12 +15,6 @@ pub fn init_logger(debug: bool) {
         EnvFilter::new("info")
     };
 
-    let fmt_layer = fmt::layer()
-        .with_target(false)
-        .with_thread_ids(false)
-        .with_file(false)
-        .with_line_number(false);
-
     let file_layer = fmt::layer()
         .with_writer(non_blocking)
         .with_ansi(false)
@@ -30,7 +24,6 @@ pub fn init_logger(debug: bool) {
 
     tracing_subscriber::registry()
         .with(filter)
-        .with(fmt_layer)
         .with(file_layer)
         .init();
 
