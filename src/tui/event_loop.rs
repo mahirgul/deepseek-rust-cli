@@ -400,10 +400,8 @@ impl EventLoop {
                             KeyCode::Down => {
                                 app.prev_history();
                             }
-                            KeyCode::Esc => {
-                                if !app.queued_commands.is_empty() {
-                                    let _ = self.rx_tx.send(TuiEvent::Abort).await;
-                                }
+                            KeyCode::Esc if !app.queued_commands.is_empty() => {
+                                let _ = self.rx_tx.send(TuiEvent::Abort).await;
                             }
                             _ => {}
                         }
