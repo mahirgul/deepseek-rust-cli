@@ -420,6 +420,9 @@ impl DeepSeekAgent {
             let mut denied_results: Vec<(usize, String, String)> = Vec::new();
 
             for (i, tc) in tool_calls.iter().enumerate() {
+                if self.is_cancelled() {
+                    break;
+                }
                 let name = tc.function.name.as_str();
                 let args: serde_json::Map<String, serde_json::Value> =
                     serde_json::from_str(&tc.function.arguments).unwrap_or_default();
@@ -441,10 +444,23 @@ impl DeepSeekAgent {
                         break;
                     }
 
-                    match approval_rx.recv().await {
-                        Some(ApprovalResult::Yes) => (true, false),
-                        Some(ApprovalResult::Always) => (true, true),
-                        _ => (false, false),
+                    let cancel_token = self
+                        .cancel_token
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .clone();
+
+                    tokio::select! {
+                        res = approval_rx.recv() => {
+                            match res {
+                                Some(ApprovalResult::Yes) => (true, false),
+                                Some(ApprovalResult::Always) => (true, true),
+                                _ => (false, false),
+                            }
+                        }
+                        _ = cancel_token.cancelled() => {
+                            (false, false)
+                        }
                     }
                 } else {
                     (true, false)
@@ -463,6 +479,10 @@ impl DeepSeekAgent {
                         "Tool execution denied by user.".to_string(),
                     ));
                 }
+            }
+
+            if self.is_cancelled() {
+                break;
             }
 
             // Execute approved tools in parallel

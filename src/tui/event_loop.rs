@@ -247,6 +247,9 @@ impl EventLoop {
         while let Some(event) = self.rx.recv().await {
             match event {
                 TuiEvent::Abort => {
+                    if app.queued_commands.is_empty() {
+                        continue;
+                    }
                     // Cancel via shared token — no agent lock needed, avoids deadlock
                     if let Ok(token) = self.cancel_token.lock() {
                         token.cancel();
@@ -262,6 +265,7 @@ impl EventLoop {
                     app.task_start_time = None;
                     app.job_start_time = None;
                     app.awaiting_approval = false;
+                    app.queued_commands.clear();
                     write_to_output(&mut stdout, "🛑 Operation aborted by user.\n".to_string())?;
                 }
                 TuiEvent::Paste(text) => {
@@ -278,7 +282,8 @@ impl EventLoop {
                         if app.awaiting_approval {
                             match key.code {
                                 KeyCode::Char('y') | KeyCode::Char('Y') => {
-                                    app.finish_task();
+                                    app.awaiting_approval = false;
+                                    app.current_task = None;
                                     write_to_output(
                                         &mut stdout,
                                         "✅ Approved\n".green().to_string(),
@@ -286,7 +291,8 @@ impl EventLoop {
                                     let _ = self.app_tx.send(ApprovalResult::Yes).await;
                                 }
                                 KeyCode::Char('n') | KeyCode::Char('N') => {
-                                    app.finish_task();
+                                    app.awaiting_approval = false;
+                                    app.current_task = None;
                                     write_to_output(
                                         &mut stdout,
                                         "❌ Rejected\n".red().to_string(),
@@ -294,7 +300,8 @@ impl EventLoop {
                                     let _ = self.app_tx.send(ApprovalResult::No).await;
                                 }
                                 KeyCode::Char('a') | KeyCode::Char('A') => {
-                                    app.finish_task();
+                                    app.awaiting_approval = false;
+                                    app.current_task = None;
                                     write_to_output(
                                         &mut stdout,
                                         "🛡️ Always Approved\n".blue().to_string(),
@@ -394,7 +401,9 @@ impl EventLoop {
                                 app.prev_history();
                             }
                             KeyCode::Esc => {
-                                let _ = self.rx_tx.send(TuiEvent::Abort).await;
+                                if !app.queued_commands.is_empty() {
+                                    let _ = self.rx_tx.send(TuiEvent::Abort).await;
+                                }
                             }
                             _ => {}
                         }
@@ -419,12 +428,6 @@ impl EventLoop {
                                 // Update token usage from event
                                 app.token_usage = token_usage.clone();
                                 app.finish_task();
-                                if matches!(agent_event, AgentEvent::Aborted { .. }) {
-                                    write_to_output(
-                                        &mut stdout,
-                                        "🛑 Operation aborted by user.\n".to_string(),
-                                    )?;
-                                }
                             }
                             _ => {
                                 // Silently ignore in-flight events after abort
