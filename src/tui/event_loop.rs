@@ -461,12 +461,16 @@ impl EventLoop {
                             app.start_task("Reasoning".to_string());
                             if !content.is_empty() {
                                 if !app.reasoning_started {
+                                    let separator = "────────────────────────────────────────────────────────────────────────────────".dim().to_string();
+                                    let header =
+                                        "🧠 Thinking Process:\n".yellow().italic().to_string();
                                     write_to_output(
                                         &mut stdout,
                                         &mut app,
-                                        "\n🧠 Thinking Process:\n".yellow().italic().to_string(),
+                                        format!("\n{}\n{}", separator, header),
                                     )?;
                                     app.reasoning_started = true;
+                                    app.content_started = false;
                                 }
                                 let colored = reasoning_colorizer.feed(&content);
                                 write_to_output(&mut stdout, &mut app, colored)?;
@@ -477,12 +481,15 @@ impl EventLoop {
                             full_message.push_str(&content);
                             if !content.is_empty() {
                                 if !app.content_started {
+                                    let separator = "────────────────────────────────────────────────────────────────────────────────".dim().to_string();
+                                    let header = "💬 Response:\n".cyan().bold().to_string();
                                     write_to_output(
                                         &mut stdout,
                                         &mut app,
-                                        "\n💬 Response:\n".cyan().bold().to_string(),
+                                        format!("\n{}\n{}", separator, header),
                                     )?;
                                     app.content_started = true;
+                                    app.reasoning_started = false;
                                 }
                                 let colored = content_colorizer.feed(&content);
                                 write_to_output(&mut stdout, &mut app, colored)?;
@@ -490,16 +497,26 @@ impl EventLoop {
                         }
                         AgentEvent::ToolStart { name, args } => {
                             app.start_task(format!("Tool: {}", name));
+                            app.reasoning_started = false;
+                            app.content_started = false;
+                            let separator = "────────────────────────────────────────────────────────────────────────────────".dim().to_string();
                             // Pretty-print JSON args
                             let formatted_args = format_tool_args(&name, &args);
                             write_to_output(
                                 &mut stdout,
                                 &mut app,
-                                format!("🔧 {} \n{}\n", name.cyan().bold(), formatted_args.dim())
-                                    .to_string(),
+                                format!(
+                                    "\n{}\n🔧 {} \n{}\n",
+                                    separator,
+                                    name.cyan().bold(),
+                                    formatted_args.dim()
+                                ),
                             )?;
                         }
                         AgentEvent::ToolEnd { name, result } => {
+                            app.reasoning_started = false;
+                            app.content_started = false;
+                            let separator = "────────────────────────────────────────────────────────────────────────────────".dim().to_string();
                             // Display result with syntax highlighting if present
                             if let Some(ref res) = result {
                                 let lang = detect_lang_for_result(&name, res);
@@ -515,7 +532,8 @@ impl EventLoop {
                                     &mut stdout,
                                     &mut app,
                                     format!(
-                                        "✅ {} executed:\n{}\n",
+                                        "\n{}\n✅ {} executed:\n{}\n",
+                                        separator,
                                         name.green().bold(),
                                         colored_result
                                     ),
@@ -524,19 +542,27 @@ impl EventLoop {
                                 write_to_output(
                                     &mut stdout,
                                     &mut app,
-                                    format!("✅ {} executed.\n", name).green().to_string(),
+                                    format!(
+                                        "\n{}\n✅ {} executed.\n",
+                                        separator,
+                                        name.green().bold()
+                                    ),
                                 )?;
                             }
                         }
                         AgentEvent::ApprovalRequest { name, args } => {
                             app.start_task("Awaiting Approval".to_string());
                             app.awaiting_approval = true;
+                            app.reasoning_started = false;
+                            app.content_started = false;
+                            let separator = "────────────────────────────────────────────────────────────────────────────────".dim().to_string();
+                            let header = format!("⚠️ Approval Required for tool: {}\n", name)
+                                .yellow()
+                                .to_string();
                             write_to_output(
                                 &mut stdout,
                                 &mut app,
-                                format!("⚠️ Approval Required for tool: {}\n", name)
-                                    .yellow()
-                                    .to_string(),
+                                format!("\n{}\n{}", separator, header),
                             )?;
                             write_to_output(
                                 &mut stdout,
@@ -562,10 +588,15 @@ impl EventLoop {
                                 write_to_output(&mut stdout, &mut app, flush)?;
                             }
                             app.finish_task();
+                            app.reasoning_started = false;
+                            app.content_started = false;
+                            let separator = "────────────────────────────────────────────────────────────────────────────────".dim().to_string();
                             write_to_output(
                                 &mut stdout,
                                 &mut app,
-                                format!("❌ Error: {}\n", content).red().to_string(),
+                                format!("\n{}\n❌ Error: {}\n", separator, content)
+                                    .red()
+                                    .to_string(),
                             )?;
                         }
                         AgentEvent::Done { token_usage } => {
@@ -581,10 +612,15 @@ impl EventLoop {
                             // Update token usage from event
                             app.token_usage = token_usage;
                             app.finish_task();
+                            app.reasoning_started = false;
+                            app.content_started = false;
+                            let separator = "────────────────────────────────────────────────────────────────────────────────".dim().to_string();
                             write_to_output(
                                 &mut stdout,
                                 &mut app,
-                                "✅ Operation Complete\n".green().to_string(),
+                                format!("\n{}\n✅ Operation Complete\n", separator)
+                                    .green()
+                                    .to_string(),
                             )?;
                             full_message.clear();
                         }
@@ -601,10 +637,14 @@ impl EventLoop {
                             // Update token usage from event
                             app.token_usage = token_usage;
                             app.finish_task();
+                            app.reasoning_started = false;
+                            app.content_started = false;
+                            let separator = "────────────────────────────────────────────────────────────────────────────────".dim().to_string();
                             write_to_output(
                                 &mut stdout,
                                 &mut app,
-                                "🛑 Operation aborted by user.\n".to_string(),
+                                format!("\n{}\n🛑 Operation aborted by user.\n", separator)
+                                    .to_string(),
                             )?;
                         }
                     }

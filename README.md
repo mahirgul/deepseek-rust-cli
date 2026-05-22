@@ -18,7 +18,7 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
   - **4-Line Dynamic Footer:** Real-time status, folder info, token usage, and command queue.
   - **Horizontal Queue:** Visualize pending and executing tasks at a glance.
   - **Syntax Highlighting:** Instant coloring for tool results (JSON, Rust, Python, etc.) and streaming code blocks.
-  - **Visual Separators:** Dimmed horizontal separator lines are printed between command executions to keep log history clean and readable.
+  - **Visual Separators:** Dimmed horizontal separator lines are printed between all operations (Thinking, Response, Tool executions, Approvals, Errors, and Completions) to keep the log history clean and readable.
 - **⌨️ Advanced Input:** Full cursor control (Home, End, Left, Right), Bracketed Paste support, and persistent history.
 - **🛑 Robust Control:** Instant abort via **Esc** with automatic message cleanup to keep conversation context valid.
 - **💡 Command Suggestions:** Mistyped or unrecognized slash commands automatically suggest the closest match using Levenshtein distance instead of executing them as chat.

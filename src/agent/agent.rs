@@ -589,7 +589,10 @@ impl DeepSeekAgent {
 
                     let mut stored_content = result_str;
                     if stored_content.len() > self.config.max_tool_output_chars {
-                        let trunc: String = stored_content.chars().take(self.config.max_tool_output_chars).collect();
+                        let trunc: String = stored_content
+                            .chars()
+                            .take(self.config.max_tool_output_chars)
+                            .collect();
                         stored_content = format!(
                             "{}\n\n... [Output Truncated to {} chars (total {} chars) to save tokens. Use specific tools or grep/read_local_file with line ranges if you need to read more.] ...",
                             trunc, self.config.max_tool_output_chars, stored_content.len()
@@ -787,9 +790,11 @@ mod tests {
 
     #[test]
     fn test_agent_new_context_chars() {
-        let mut config = Config::default();
-        config.max_context_chars = 500;
-        config.max_tool_output_chars = 300;
+        let config = Config {
+            max_context_chars: 500,
+            max_tool_output_chars: 300,
+            ..Default::default()
+        };
         let agent = DeepSeekAgent::new("dummy_key".to_string(), config, None);
         assert_eq!(agent.config.max_context_chars, 500);
         assert_eq!(agent.config.max_tool_output_chars, 300);
