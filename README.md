@@ -60,6 +60,11 @@ export DEEPSEEK_API_KEY="your_api_key_here"
 
 Optional settings are stored in `.deep/config.json` and can be managed via the `/config` slash command.
 
+### 🪙 Token Optimization Settings
+To optimize and reduce token consumption, the following custom settings are supported:
+- `max_context_chars` (default `100000`): The maximum character length of active session history kept. Older messages are automatically pruned when this limit is exceeded.
+- `max_tool_output_chars` (default `15000`): The maximum character length of a single tool execution's output stored in the chat history. Extremely long outputs (e.g., compile logs) are truncated to save context window tokens.
+
 ### GitHub Integration (Optional)
 ```bash
 export GITHUB_TOKEN="ghp_xxxxxxxx"

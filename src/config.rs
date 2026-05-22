@@ -27,6 +27,10 @@ pub struct Config {
     pub concise_reasoning: bool,
     pub debug: bool,
     pub system_prompt: String,
+    #[serde(default = "default_max_tool_output_chars")]
+    pub max_tool_output_chars: usize,
+    #[serde(default = "default_max_context_chars")]
+    pub max_context_chars: usize,
 }
 
 impl Default for Config {
@@ -63,8 +67,18 @@ impl Default for Config {
             concise_reasoning: true,
             debug: false,
             system_prompt: prompt,
+            max_tool_output_chars: 15000,
+            max_context_chars: 100000,
         }
     }
+}
+
+fn default_max_tool_output_chars() -> usize {
+    15000
+}
+
+fn default_max_context_chars() -> usize {
+    100000
 }
 const DEFAULT_SYSTEM_PROMPT: &str = "You are a terminal-based AI coding assistant running on {os} \
                                      via {shell}.
@@ -193,5 +207,15 @@ mod tests {
         let json = serde_json::to_string(&config).unwrap();
         let decoded: Config = serde_json::from_str(&json).unwrap();
         assert_eq!(config.model, decoded.model);
+        assert_eq!(config.max_tool_output_chars, decoded.max_tool_output_chars);
+        assert_eq!(config.max_context_chars, decoded.max_context_chars);
+    }
+
+    #[test]
+    fn test_config_backward_compatibility() {
+        let json = r#"{"model":"test-model","base_url":"http://test","request_timeout":10,"temperature":0.5,"top_p":0.9,"presence_penalty":0.0,"frequency_penalty":0.0,"max_tokens":1000,"max_iterations":5,"show_token_usage":false,"concise_reasoning":false,"debug":false,"system_prompt":"sys"}"#;
+        let decoded: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(decoded.max_tool_output_chars, 15000);
+        assert_eq!(decoded.max_context_chars, 100000);
     }
 }

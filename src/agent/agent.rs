@@ -587,9 +587,18 @@ impl DeepSeekAgent {
                         break;
                     }
 
+                    let mut stored_content = result_str;
+                    if stored_content.len() > self.config.max_tool_output_chars {
+                        let trunc: String = stored_content.chars().take(self.config.max_tool_output_chars).collect();
+                        stored_content = format!(
+                            "{}\n\n... [Output Truncated to {} chars (total {} chars) to save tokens. Use specific tools or grep/read_local_file with line ranges if you need to read more.] ...",
+                            trunc, self.config.max_tool_output_chars, stored_content.len()
+                        );
+                    }
+
                     self.messages.push(Message {
                         role: "tool".to_string(),
-                        content: Some(result_str),
+                        content: Some(stored_content),
                         reasoning_content: None,
                         tool_calls: None,
                         tool_call_id: Some(tc.id.clone()),
@@ -645,7 +654,7 @@ impl DeepSeekAgent {
     }
 
     fn manage_context(&mut self) {
-        let max_chars = 120_000;
+        let max_chars = self.config.max_context_chars;
         let mut current_chars: usize = self
             .messages
             .iter()
@@ -768,5 +777,21 @@ impl DeepSeekAgent {
         } else {
             "ℹ️ Undo stack is empty.".to_string()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[test]
+    fn test_agent_new_context_chars() {
+        let mut config = Config::default();
+        config.max_context_chars = 500;
+        config.max_tool_output_chars = 300;
+        let agent = DeepSeekAgent::new("dummy_key".to_string(), config, None);
+        assert_eq!(agent.config.max_context_chars, 500);
+        assert_eq!(agent.config.max_tool_output_chars, 300);
     }
 }

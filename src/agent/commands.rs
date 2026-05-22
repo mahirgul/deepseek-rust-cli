@@ -209,6 +209,20 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
                                 return Ok(Some("Invalid integer".into()));
                             }
                         }
+                        "max_context_chars" | "context_chars" | "max_context" => {
+                            if let Ok(v) = val.parse() {
+                                agent.config.max_context_chars = v
+                            } else {
+                                return Ok(Some("Invalid integer".into()));
+                            }
+                        }
+                        "max_tool_output_chars" | "tool_output_chars" | "max_tool_output" => {
+                            if let Ok(v) = val.parse() {
+                                agent.config.max_tool_output_chars = v
+                            } else {
+                                return Ok(Some("Invalid integer".into()));
+                            }
+                        }
                         "tokens" | "show_token_usage" => {
                             agent.config.show_token_usage =
                                 val.to_lowercase() == "true" || val == "1"
@@ -236,6 +250,12 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
                         }
                         "max_tokens" => agent.config.max_tokens.to_string(),
                         "max_iterations" => agent.config.max_iterations.to_string(),
+                        "max_context_chars" | "context_chars" | "max_context" => {
+                            agent.config.max_context_chars.to_string()
+                        }
+                        "max_tool_output_chars" | "tool_output_chars" | "max_tool_output" => {
+                            agent.config.max_tool_output_chars.to_string()
+                        }
                         "tokens" | "show_token_usage" => agent.config.show_token_usage.to_string(),
                         "short" | "concise_reasoning" => agent.config.concise_reasoning.to_string(),
                         "debug" => agent.config.debug.to_string(),
@@ -247,8 +267,8 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
                 let conf = format!(
                     "Current Configuration:\n- model: {}\n- base_url: {}\n- temperature: {}\n- \
                      top_p: {}\n- presence_penalty: {}\n- frequency_penalty: {}\n- max_tokens: \
-                     {}\n- max_iterations: {}\n- show_token_usage: {}\n- concise_reasoning: {}\n- \
-                     debug: {}",
+                     {}\n- max_iterations: {}\n- max_context_chars: {}\n- max_tool_output_chars: {}\n- \
+                     show_token_usage: {}\n- concise_reasoning: {}\n- debug: {}",
                     agent.config.model,
                     agent.config.base_url,
                     agent.config.temperature,
@@ -257,6 +277,8 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
                     agent.config.frequency_penalty,
                     agent.config.max_tokens,
                     agent.config.max_iterations,
+                    agent.config.max_context_chars,
+                    agent.config.max_tool_output_chars,
                     agent.config.show_token_usage,
                     agent.config.concise_reasoning,
                     agent.config.debug
