@@ -77,6 +77,8 @@ struct App {
     queued_commands: Vec<String>,
     log_x: u16,
     log_y: u16,
+    reasoning_started: bool,
+    content_started: bool,
 }
 
 impl App {
@@ -102,6 +104,8 @@ impl App {
             queued_commands: Vec::new(),
             log_x: 0,
             log_y: 0,
+            reasoning_started: false,
+            content_started: false,
         }
     }
 
@@ -218,6 +222,7 @@ impl EventLoop {
         let mut full_message = String::new();
         let mut app = App::new();
         let mut reasoning_colorizer = StreamColorizer::new();
+        reasoning_colorizer.set_dimmed(true);
         let mut content_colorizer = StreamColorizer::new();
 
         {
@@ -328,10 +333,14 @@ impl EventLoop {
                         match key.code {
                             KeyCode::Enter if !app.input.is_empty() => {
                                 let cmd = app.input.clone();
+                                app.reasoning_started = false;
+                                app.content_started = false;
+                                let separator = format!("\n{}\n", "────────────────────────────────────────────────────────────────────────────────".dim());
+                                let prompt = format!("> {}\n", cmd).cyan().to_string();
                                 write_to_output(
                                     &mut stdout,
                                     &mut app,
-                                    format!("> {}\n", cmd).cyan().to_string(),
+                                    format!("{}{}", separator, prompt),
                                 )?;
 
                                 if cmd == "exit"
@@ -451,6 +460,14 @@ impl EventLoop {
                         AgentEvent::Reasoning { content } => {
                             app.start_task("Reasoning".to_string());
                             if !content.is_empty() {
+                                if !app.reasoning_started {
+                                    write_to_output(
+                                        &mut stdout,
+                                        &mut app,
+                                        "\n🧠 Thinking Process:\n".yellow().italic().to_string(),
+                                    )?;
+                                    app.reasoning_started = true;
+                                }
                                 let colored = reasoning_colorizer.feed(&content);
                                 write_to_output(&mut stdout, &mut app, colored)?;
                             }
@@ -458,8 +475,18 @@ impl EventLoop {
                         AgentEvent::Content { content } => {
                             app.start_task("Generating".to_string());
                             full_message.push_str(&content);
-                            let colored = content_colorizer.feed(&content);
-                            write_to_output(&mut stdout, &mut app, colored)?;
+                            if !content.is_empty() {
+                                if !app.content_started {
+                                    write_to_output(
+                                        &mut stdout,
+                                        &mut app,
+                                        "\n💬 Response:\n".cyan().bold().to_string(),
+                                    )?;
+                                    app.content_started = true;
+                                }
+                                let colored = content_colorizer.feed(&content);
+                                write_to_output(&mut stdout, &mut app, colored)?;
+                            }
                         }
                         AgentEvent::ToolStart { name, args } => {
                             app.start_task(format!("Tool: {}", name));

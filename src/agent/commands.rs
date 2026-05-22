@@ -288,6 +288,98 @@ Available Commands:
             Ok(Some(help.trim().to_string()))
         }
         "/update" => crate::updater::run_update().map(Some),
-        _ => Ok(None),
+        _ => {
+            if cmd.starts_with('/') {
+                Ok(Some(suggest_command(&cmd)))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+}
+
+const COMMANDS: &[&str] = &[
+    "/model",
+    "/clear",
+    "/forget",
+    "/undo",
+    "/tokens",
+    "/temperature",
+    "/auto",
+    "/info",
+    "/sessions",
+    "/resume",
+    "/savemem",
+    "/export",
+    "/retry",
+    "/config",
+    "/update",
+    "/help",
+    "/exit",
+    "/quit",
+];
+
+fn levenshtein_distance(a: &str, b: &str) -> usize {
+    let a_chars: Vec<char> = a.chars().collect();
+    let b_chars: Vec<char> = b.chars().collect();
+    let len_a = a_chars.len();
+    let len_b = b_chars.len();
+
+    let mut row: Vec<usize> = (0..=len_b).collect();
+    for i in 1..=len_a {
+        let mut prev_diag = row[0];
+        row[0] = i;
+        for j in 1..=len_b {
+            let temp = row[j];
+            if a_chars[i - 1] == b_chars[j - 1] {
+                row[j] = prev_diag;
+            } else {
+                row[j] = 1 + std::cmp::min(row[j], std::cmp::min(row[j - 1], prev_diag));
+            }
+            prev_diag = temp;
+        }
+    }
+    row[len_b]
+}
+
+fn suggest_command(cmd: &str) -> String {
+    let mut best_match = None;
+    let mut best_dist = usize::MAX;
+
+    for &c in COMMANDS {
+        let dist = levenshtein_distance(cmd, c);
+        if dist < best_dist {
+            best_dist = dist;
+            best_match = Some(c);
+        }
+    }
+
+    if let Some(m) = best_match {
+        if best_dist <= 3 {
+            return format!("❌ Unknown command: {}. Did you mean `{}`?", cmd, m);
+        }
+    }
+    format!(
+        "❌ Unknown command: {}. Type `/help` to see available commands.",
+        cmd
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_levenshtein_distance() {
+        assert_eq!(levenshtein_distance("cat", "cat"), 0);
+        assert_eq!(levenshtein_distance("cat", "cut"), 1);
+        assert_eq!(levenshtein_distance("kitten", "sitting"), 3);
+    }
+
+    #[test]
+    fn test_suggest_command() {
+        assert!(suggest_command("/toke").contains("Did you mean `/tokens`?"));
+        assert!(suggest_command("/conf").contains("Did you mean `/config`?"));
+        assert!(suggest_command("/abcdef").contains("Type `/help` to see available commands"));
     }
 }

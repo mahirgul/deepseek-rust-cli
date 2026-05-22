@@ -27,6 +27,8 @@ pub struct StreamColorizer {
     state: State,
     /// Pending output that might be part of an unclosed construct
     pending: String,
+    dimmed: bool,
+    first_feed: bool,
 }
 
 impl Default for StreamColorizer {
@@ -40,6 +42,20 @@ impl StreamColorizer {
         Self {
             state: State::Normal,
             pending: String::new(),
+            dimmed: false,
+            first_feed: true,
+        }
+    }
+
+    pub fn set_dimmed(&mut self, dimmed: bool) {
+        self.dimmed = dimmed;
+    }
+
+    fn reset_code(&self) -> String {
+        if self.dimmed {
+            "\x1b[0m\x1b[2m".to_string()
+        } else {
+            "\x1b[0m".to_string()
         }
     }
 
@@ -50,6 +66,10 @@ impl StreamColorizer {
         self.pending.clear();
 
         let mut out = String::new();
+        if self.first_feed && self.dimmed {
+            out.push_str("\x1b[2m");
+            self.first_feed = false;
+        }
         let chars: Vec<char> = input.chars().collect();
         let len = chars.len();
         let mut i = 0;
@@ -62,7 +82,7 @@ impl StreamColorizer {
                         // Check for fenced block (```)
                         if i + 2 < len && chars[i + 1] == '`' && chars[i + 2] == '`' {
                             // Opening fenced block
-                            out.push_str("\x1b[33m```\x1b[0m"); // yellow backticks
+                            let _ = write!(out, "\x1b[33m```{}", self.reset_code()); // yellow backticks
                             i += 3;
                             // Read language tag
                             let mut lang = String::new();
@@ -71,7 +91,8 @@ impl StreamColorizer {
                                 i += 1;
                             }
                             if !lang.is_empty() {
-                                let _ = write!(out, "\x1b[36m{}\x1b[0m", lang); // cyan lang
+                                let _ = write!(out, "\x1b[36m{}{}", lang, self.reset_code());
+                                // cyan lang
                             }
                             // Skip newline after lang tag
                             if i < len && chars[i] == '\r' {
@@ -86,7 +107,7 @@ impl StreamColorizer {
                             };
                         } else {
                             // Start inline code
-                            out.push_str("\x1b[32m`\x1b[0m"); // green backtick
+                            let _ = write!(out, "\x1b[32m`{}", self.reset_code()); // green backtick
                             i += 1;
                             self.state = State::InlineCode;
                         }
@@ -95,7 +116,7 @@ impl StreamColorizer {
                         let path_end = self.match_path(&chars, i, len);
                         if path_end > i {
                             let path: String = chars[i..path_end].iter().collect();
-                            let _ = write!(out, "\x1b[34m{}\x1b[0m", path); // blue file path
+                            let _ = write!(out, "\x1b[34m{}{}", path, self.reset_code()); // blue file path
                             i = path_end;
                         } else {
                             out.push(chars[i]);
@@ -108,7 +129,7 @@ impl StreamColorizer {
                 }
                 State::InlineCode => {
                     if chars[i] == '`' {
-                        out.push_str("\x1b[32m`\x1b[0m"); // closing green backtick
+                        let _ = write!(out, "\x1b[32m`{}", self.reset_code()); // closing green backtick
                         i += 1;
                         self.state = State::Normal;
                     } else {
@@ -118,14 +139,14 @@ impl StreamColorizer {
                             out.push(chars[i]);
                             i += 1;
                         }
-                        out.push_str("\x1b[0m");
+                        out.push_str(&self.reset_code());
                     }
                 }
                 State::FencedBlock { ref lang } => {
                     // Look for closing ```
                     if chars[i] == '`' && i + 2 < len && chars[i + 1] == '`' && chars[i + 2] == '`'
                     {
-                        out.push_str("\x1b[33m```\x1b[0m"); // yellow closing
+                        let _ = write!(out, "\x1b[33m```{}", self.reset_code()); // yellow closing
                         i += 3;
                         self.state = State::Normal;
                     } else {
@@ -143,7 +164,7 @@ impl StreamColorizer {
                             out.push(chars[i]);
                             i += 1;
                         }
-                        out.push_str("\x1b[0m");
+                        out.push_str(&self.reset_code());
                         self.state = State::FencedBlock { lang: lang_clone };
                     }
                 }
@@ -168,10 +189,10 @@ impl StreamColorizer {
         // Close any open constructs
         match self.state {
             State::InlineCode => {
-                out.push_str("\x1b[32m`\x1b[0m"); // close inline
+                let _ = write!(out, "\x1b[32m`{}", self.reset_code()); // close inline
             }
             State::FencedBlock { .. } => {
-                out.push_str("\x1b[33m```\x1b[0m"); // close block
+                let _ = write!(out, "\x1b[33m```{}", self.reset_code()); // close block
             }
             _ => {}
         }
@@ -181,7 +202,12 @@ impl StreamColorizer {
             self.pending.clear();
         }
 
+        if self.dimmed {
+            out.push_str("\x1b[0m");
+        }
+
         self.state = State::Normal;
+        self.first_feed = true;
         out
     }
 
