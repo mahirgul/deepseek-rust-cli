@@ -75,6 +75,8 @@ struct App {
     /// Pending commands that were sent but not yet completed.
     /// Index 0 is the currently-running command; the rest are queued.
     queued_commands: Vec<String>,
+    log_x: u16,
+    log_y: u16,
 }
 
 impl App {
@@ -98,6 +100,8 @@ impl App {
             token_usage: TokenUsage::default(),
             aborted: false,
             queued_commands: Vec::new(),
+            log_x: 0,
+            log_y: 0,
         }
     }
 
@@ -237,7 +241,6 @@ impl EventLoop {
             // CSI <top>;<bottom>r set scrolling region (1-indexed)
             style::Print(format!("\x1b[1;{}r", log_height)),
             cursor::MoveTo(0, 0),
-            cursor::SavePosition // Initial Log Position
         )?;
 
         let mut last_size = (term_width, term_height);
@@ -266,7 +269,11 @@ impl EventLoop {
                     app.job_start_time = None;
                     app.awaiting_approval = false;
                     app.queued_commands.clear();
-                    write_to_output(&mut stdout, "🛑 Operation aborted by user.\n".to_string())?;
+                    write_to_output(
+                        &mut stdout,
+                        &mut app,
+                        "🛑 Operation aborted by user.\n".to_string(),
+                    )?;
                 }
                 TuiEvent::Paste(text) => {
                     // Insert pasted text at cursor position (preserving newlines)
@@ -286,6 +293,7 @@ impl EventLoop {
                                     app.current_task = None;
                                     write_to_output(
                                         &mut stdout,
+                                        &mut app,
                                         "✅ Approved\n".green().to_string(),
                                     )?;
                                     let _ = self.app_tx.send(ApprovalResult::Yes).await;
@@ -295,6 +303,7 @@ impl EventLoop {
                                     app.current_task = None;
                                     write_to_output(
                                         &mut stdout,
+                                        &mut app,
                                         "❌ Rejected\n".red().to_string(),
                                     )?;
                                     let _ = self.app_tx.send(ApprovalResult::No).await;
@@ -304,6 +313,7 @@ impl EventLoop {
                                     app.current_task = None;
                                     write_to_output(
                                         &mut stdout,
+                                        &mut app,
                                         "🛡️ Always Approved\n".blue().to_string(),
                                     )?;
                                     let _ = self.app_tx.send(ApprovalResult::Always).await;
@@ -320,6 +330,7 @@ impl EventLoop {
                                 let cmd = app.input.clone();
                                 write_to_output(
                                     &mut stdout,
+                                    &mut app,
                                     format!("> {}\n", cmd).cyan().to_string(),
                                 )?;
 
@@ -417,11 +428,11 @@ impl EventLoop {
                                 // Flush colorizers
                                 let flush = reasoning_colorizer.finish();
                                 if !flush.is_empty() {
-                                    write_to_output(&mut stdout, flush)?;
+                                    write_to_output(&mut stdout, &mut app, flush)?;
                                 }
                                 let flush = content_colorizer.finish();
                                 if !flush.is_empty() {
-                                    write_to_output(&mut stdout, flush)?;
+                                    write_to_output(&mut stdout, &mut app, flush)?;
                                 }
                                 // Update token usage from event
                                 app.token_usage = token_usage.clone();
@@ -441,14 +452,14 @@ impl EventLoop {
                             app.start_task("Reasoning".to_string());
                             if !content.is_empty() {
                                 let colored = reasoning_colorizer.feed(&content);
-                                write_to_output(&mut stdout, colored)?;
+                                write_to_output(&mut stdout, &mut app, colored)?;
                             }
                         }
                         AgentEvent::Content { content } => {
                             app.start_task("Generating".to_string());
                             full_message.push_str(&content);
                             let colored = content_colorizer.feed(&content);
-                            write_to_output(&mut stdout, colored)?;
+                            write_to_output(&mut stdout, &mut app, colored)?;
                         }
                         AgentEvent::ToolStart { name, args } => {
                             app.start_task(format!("Tool: {}", name));
@@ -456,6 +467,7 @@ impl EventLoop {
                             let formatted_args = format_tool_args(&name, &args);
                             write_to_output(
                                 &mut stdout,
+                                &mut app,
                                 format!("🔧 {} \n{}\n", name.cyan().bold(), formatted_args.dim())
                                     .to_string(),
                             )?;
@@ -474,6 +486,7 @@ impl EventLoop {
                                 let colored_result = CodeColorizer::highlight(res, lang, max_lines);
                                 write_to_output(
                                     &mut stdout,
+                                    &mut app,
                                     format!(
                                         "✅ {} executed:\n{}\n",
                                         name.green().bold(),
@@ -483,6 +496,7 @@ impl EventLoop {
                             } else {
                                 write_to_output(
                                     &mut stdout,
+                                    &mut app,
                                     format!("✅ {} executed.\n", name).green().to_string(),
                                 )?;
                             }
@@ -492,16 +506,19 @@ impl EventLoop {
                             app.awaiting_approval = true;
                             write_to_output(
                                 &mut stdout,
+                                &mut app,
                                 format!("⚠️ Approval Required for tool: {}\n", name)
                                     .yellow()
                                     .to_string(),
                             )?;
                             write_to_output(
                                 &mut stdout,
+                                &mut app,
                                 format!("Arguments: {}\n", args).dim().to_string(),
                             )?;
                             write_to_output(
                                 &mut stdout,
+                                &mut app,
                                 "? Press 'y' to approve, 'n' to reject, 'a' to allow all.\n"
                                     .red()
                                     .to_string(),
@@ -511,15 +528,16 @@ impl EventLoop {
                             // Flush any pending colorizer output
                             let flush = reasoning_colorizer.finish();
                             if !flush.is_empty() {
-                                write_to_output(&mut stdout, flush)?;
+                                write_to_output(&mut stdout, &mut app, flush)?;
                             }
                             let flush = content_colorizer.finish();
                             if !flush.is_empty() {
-                                write_to_output(&mut stdout, flush)?;
+                                write_to_output(&mut stdout, &mut app, flush)?;
                             }
                             app.finish_task();
                             write_to_output(
                                 &mut stdout,
+                                &mut app,
                                 format!("❌ Error: {}\n", content).red().to_string(),
                             )?;
                         }
@@ -527,17 +545,18 @@ impl EventLoop {
                             // Flush any pending colorizer output
                             let flush = reasoning_colorizer.finish();
                             if !flush.is_empty() {
-                                write_to_output(&mut stdout, flush)?;
+                                write_to_output(&mut stdout, &mut app, flush)?;
                             }
                             let flush = content_colorizer.finish();
                             if !flush.is_empty() {
-                                write_to_output(&mut stdout, flush)?;
+                                write_to_output(&mut stdout, &mut app, flush)?;
                             }
                             // Update token usage from event
                             app.token_usage = token_usage;
                             app.finish_task();
                             write_to_output(
                                 &mut stdout,
+                                &mut app,
                                 "✅ Operation Complete\n".green().to_string(),
                             )?;
                             full_message.clear();
@@ -546,17 +565,18 @@ impl EventLoop {
                             // Flush any pending colorizer output
                             let flush = reasoning_colorizer.finish();
                             if !flush.is_empty() {
-                                write_to_output(&mut stdout, flush)?;
+                                write_to_output(&mut stdout, &mut app, flush)?;
                             }
                             let flush = content_colorizer.finish();
                             if !flush.is_empty() {
-                                write_to_output(&mut stdout, flush)?;
+                                write_to_output(&mut stdout, &mut app, flush)?;
                             }
                             // Update token usage from event
                             app.token_usage = token_usage;
                             app.finish_task();
                             write_to_output(
                                 &mut stdout,
+                                &mut app,
                                 "🛑 Operation aborted by user.\n".to_string(),
                             )?;
                         }
@@ -579,6 +599,9 @@ impl EventLoop {
                 let log_h = h.saturating_sub(new_fh);
                 execute!(stdout, style::Print(format!("\x1b[1;{}r", log_h)))?;
                 last_footer_height = new_fh;
+                if app.log_y >= log_h {
+                    app.log_y = log_h.saturating_sub(1);
+                }
             }
             render_footer(&mut stdout, &app)?;
         }
@@ -846,17 +869,62 @@ fn strip_ansi(s: &str) -> String {
 }
 
 /// Erases the footer area, prints the new text chunk, and prepares space for the footer.
-fn write_to_output(stdout: &mut io::Stdout, text: String) -> io::Result<()> {
-    // 1. Jump to the current log position
-    stdout.queue(cursor::RestorePosition)?;
+fn write_to_output(stdout: &mut io::Stdout, app: &mut App, text: String) -> io::Result<()> {
+    let (term_width, term_height) = terminal::size().unwrap_or((80, 24));
+    let log_height = term_height.saturating_sub(app.footer_height);
+    let max_cols = term_width;
 
-    // 2. Print the NEW text chunk
-    let safe_text = text.replace("\r\n", "\n").replace("\n", "\r\n");
-    execute!(stdout, style::Print(safe_text))?;
+    // Move to the current log position
+    stdout.queue(cursor::MoveTo(app.log_x, app.log_y))?;
 
-    // 3. Save the NEW log position
-    stdout.queue(cursor::SavePosition)?;
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
 
+    while i < chars.len() {
+        if chars[i] == '\x1b' && i + 1 < chars.len() && chars[i + 1] == '[' {
+            // It's an ANSI escape sequence! Print it directly and skip.
+            let mut seq = String::new();
+            seq.push('\x1b');
+            seq.push('[');
+            i += 2;
+            while i < chars.len() {
+                let c = chars[i];
+                seq.push(c);
+                i += 1;
+                // ANSI escape sequences end with a letter in the range @ to ~ (ASCII 64-126)
+                if (c as u32) >= 64 && (c as u32) <= 126 {
+                    break;
+                }
+            }
+            execute!(stdout, style::Print(seq))?;
+        } else if chars[i] == '\n' {
+            // Newline: print CR LF to move to start of next line
+            execute!(stdout, style::Print("\r\n"))?;
+            app.log_x = 0;
+            if app.log_y < log_height.saturating_sub(1) {
+                app.log_y += 1;
+            }
+            i += 1;
+        } else if chars[i] == '\r' {
+            // Carriage return: reset log_x
+            app.log_x = 0;
+            i += 1;
+        } else {
+            // Normal character
+            if app.log_x >= max_cols {
+                execute!(stdout, style::Print("\r\n"))?;
+                app.log_x = 0;
+                if app.log_y < log_height.saturating_sub(1) {
+                    app.log_y += 1;
+                }
+            }
+            execute!(stdout, style::Print(chars[i]))?;
+            app.log_x += 1;
+            i += 1;
+        }
+    }
+
+    stdout.flush()?;
     Ok(())
 }
 
