@@ -32,12 +32,38 @@ pub enum TuiEvent {
     Abort,
 }
 
-struct TerminalGuard;
+#[cfg(windows)]
+extern "system" {
+    fn GetConsoleCP() -> u32;
+    fn GetConsoleOutputCP() -> u32;
+    fn SetConsoleCP(wCodePageID: u32) -> i32;
+    fn SetConsoleOutputCP(wCodePageID: u32) -> i32;
+}
+
+struct TerminalGuard {
+    #[cfg(windows)]
+    orig_cp: Option<(u32, u32)>,
+}
 
 impl TerminalGuard {
     fn new() -> io::Result<Self> {
         enable_raw_mode()?;
-        Ok(Self)
+
+        #[cfg(windows)]
+        let orig_cp = unsafe {
+            let cp = GetConsoleCP();
+            let ocp = GetConsoleOutputCP();
+            if SetConsoleCP(65001) != 0 && SetConsoleOutputCP(65001) != 0 {
+                Some((cp, ocp))
+            } else {
+                None
+            }
+        };
+
+        Ok(Self {
+            #[cfg(windows)]
+            orig_cp,
+        })
     }
 }
 
@@ -53,6 +79,14 @@ impl Drop for TerminalGuard {
             DisableBracketedPaste,
             cursor::Show,
         );
+
+        #[cfg(windows)]
+        if let Some((cp, ocp)) = self.orig_cp {
+            unsafe {
+                let _ = SetConsoleCP(cp);
+                let _ = SetConsoleOutputCP(ocp);
+            }
+        }
     }
 }
 
