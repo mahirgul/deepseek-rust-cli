@@ -267,8 +267,8 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
                 let conf = format!(
                     "Current Configuration:\n- model: {}\n- base_url: {}\n- temperature: {}\n- \
                      top_p: {}\n- presence_penalty: {}\n- frequency_penalty: {}\n- max_tokens: \
-                     {}\n- max_iterations: {}\n- max_context_chars: {}\n- max_tool_output_chars: {}\n- \
-                     show_token_usage: {}\n- concise_reasoning: {}\n- debug: {}",
+                     {}\n- max_iterations: {}\n- max_context_chars: {}\n- max_tool_output_chars: \
+                     {}\n- show_token_usage: {}\n- concise_reasoning: {}\n- debug: {}",
                     agent.config.model,
                     agent.config.base_url,
                     agent.config.temperature,

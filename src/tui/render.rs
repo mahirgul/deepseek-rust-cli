@@ -1,3 +1,11 @@
+use std::io::{self, Write};
+
+use crossterm::{
+    cursor, execute,
+    style::{self, Stylize},
+    terminal, QueueableCommand,
+};
+
 use crate::{
     tui::{
         app::App,
@@ -5,12 +13,6 @@ use crate::{
     },
     version::VERSION,
 };
-use crossterm::{
-    cursor, execute,
-    style::{self, Stylize},
-    terminal, QueueableCommand,
-};
-use std::io::{self, Write};
 
 pub fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
     let (term_width, term_height) = terminal::size().unwrap_or((80, 24));

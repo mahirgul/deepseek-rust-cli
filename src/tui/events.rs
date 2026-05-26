@@ -1,3 +1,11 @@
+use std::io;
+
+use anyhow::Result;
+use crossterm::{
+    event::{KeyCode, KeyEventKind},
+    style::Stylize,
+};
+
 use crate::{
     agent::types::{AgentEvent, ApprovalResult},
     tui::{
@@ -8,10 +16,6 @@ use crate::{
         utils::{detect_lang_for_result, format_tool_args},
     },
 };
-use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEventKind};
-use crossterm::style::Stylize;
-use std::io;
 
 impl EventLoop {
     pub fn handle_input(
@@ -287,7 +291,10 @@ impl EventLoop {
                 )?;
 
                 let prompt_str = if is_traversal {
-                    "? Press 'y' to approve this path traversal, 'n' to reject. (Always Approve is disabled for security)\n".red().to_string()
+                    "? Press 'y' to approve this path traversal, 'n' to reject. (Always Approve is \
+                     disabled for security)\n"
+                        .red()
+                        .to_string()
                 } else {
                     "? Press 'y' to approve, 'n' to reject, 'a' to allow all.\n"
                         .red()

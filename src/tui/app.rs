@@ -1,5 +1,6 @@
-use crate::api::types::TokenUsage;
 use std::time::Instant;
+
+use crate::api::types::TokenUsage;
 
 pub fn load_global_history() -> Vec<String> {
     let path = std::path::PathBuf::from(".deep/input_history.json");

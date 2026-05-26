@@ -4,11 +4,13 @@ pub mod highlighter;
 pub mod types;
 pub mod utils;
 
-use crate::tui::colorizer::types::State;
-pub use highlighter::CodeColorizer;
 use std::fmt::Write as FmtWrite;
+
+pub use highlighter::CodeColorizer;
 pub use types::CodeLang;
 pub use utils::truncate_result;
+
+use crate::tui::colorizer::types::State;
 
 pub struct StreamColorizer {
     state: State,

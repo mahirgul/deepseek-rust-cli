@@ -1,11 +1,7 @@
-use std::collections::HashMap;
-use std::process::Stdio;
-use std::sync::Arc;
-use tokio::io::AsyncReadExt;
-use tokio::process::Command;
-use tokio::sync::Mutex;
+use std::{collections::HashMap, process::Stdio, sync::Arc};
 
 use anyhow::Result;
+use tokio::{io::AsyncReadExt, process::Command, sync::Mutex};
 
 pub struct ProcessInfo {
     pub cmd: String,

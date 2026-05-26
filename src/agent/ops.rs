@@ -1,5 +1,4 @@
-use crate::agent::agent::DeepSeekAgent;
-use crate::agent::history::save_history;
+use crate::agent::{agent::DeepSeekAgent, history::save_history};
 
 impl DeepSeekAgent {
     pub fn save(&self) {

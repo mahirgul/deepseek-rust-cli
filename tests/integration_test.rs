@@ -91,7 +91,8 @@ fn test_edit_file_by_lines() {
     rt.block_on(async {
         use deepseek_rust_cli::tools::file_io::{edit_file_by_lines, LineEdit};
 
-        // 1. Success case: multiple edits, descending start line, target content check, line count shift
+        // 1. Success case: multiple edits, descending start line, target content check, line count
+        //    shift
         let edits = vec![
             LineEdit {
                 start_line: 2,
@@ -216,7 +217,12 @@ fn test_background_process_lifecycle() {
 fn test_view_symbol_contents() {
     let dir = TempDir::new_in(".").expect("Failed to create temp dir in CWD");
     let rust_path = dir.path().join("code.rs");
-    fs::write(&rust_path, "fn hello() {\n    println!(\"hello\");\n}\n\nstruct Point {\n    x: i32,\n    y: i32,\n}\n").unwrap();
+    fs::write(
+        &rust_path,
+        "fn hello() {\n    println!(\"hello\");\n}\n\nstruct Point {\n    x: i32,\n    y: \
+         i32,\n}\n",
+    )
+    .unwrap();
 
     let py_path = dir.path().join("code.py");
     fs::write(&py_path, "def main():\n    print(\"main\")\n    return 0\n\nclass Foo:\n    def run(self):\n        pass\n").unwrap();
@@ -257,7 +263,8 @@ fn test_apply_diff_patch() {
     let path = dir.path().join("patch.txt");
     fs::write(&path, "line1\nline2\nline3\nline4\n").unwrap();
 
-    let patch = "--- a/patch.txt\n+++ b/patch.txt\n@@ -2,2 +2,3 @@\n-line2\n+line2 modified\n+line2.5 added\n line3\n";
+    let patch = "--- a/patch.txt\n+++ b/patch.txt\n@@ -2,2 +2,3 @@\n-line2\n+line2 \
+                 modified\n+line2.5 added\n line3\n";
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {

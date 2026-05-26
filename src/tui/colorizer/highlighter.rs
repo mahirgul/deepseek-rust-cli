@@ -1,5 +1,6 @@
-use crate::tui::colorizer::types::CodeLang;
 use std::fmt::Write as FmtWrite;
+
+use crate::tui::colorizer::types::CodeLang;
 
 /// Syntax highlighter for code snippets.
 ///

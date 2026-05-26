@@ -1,3 +1,8 @@
+use anyhow::Result;
+use colored::Colorize;
+use futures::StreamExt;
+use tokio::sync::mpsc;
+
 use crate::{
     agent::{
         agent::DeepSeekAgent,
@@ -10,10 +15,6 @@ use crate::{
     },
     tools::schemas::get_filtered_tools_schemas,
 };
-use anyhow::Result;
-use colored::Colorize;
-use futures::StreamExt;
-use tokio::sync::mpsc;
 
 impl DeepSeekAgent {
     pub async fn chat_stream(
@@ -430,8 +431,12 @@ impl DeepSeekAgent {
                             .take(self.config.max_tool_output_chars)
                             .collect();
                         stored_content = format!(
-                            "{}\n\n... [Output Truncated to {} chars (total {} chars) to save tokens. Use specific tools or grep/read_local_file with line ranges if you need to read more.] ...",
-                            trunc, self.config.max_tool_output_chars, stored_content.len()
+                            "{}\n\n... [Output Truncated to {} chars (total {} chars) to save \
+                             tokens. Use specific tools or grep/read_local_file with line ranges \
+                             if you need to read more.] ...",
+                            trunc,
+                            self.config.max_tool_output_chars,
+                            stored_content.len()
                         );
                     }
 

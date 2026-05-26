@@ -34,9 +34,14 @@ pub fn get_env_var(name: &str) -> String {
 }
 
 pub async fn web_search_duckduckgo(query: &str) -> Result<String> {
-    let response = CLIENT.get("https://html.duckduckgo.com/html/")
+    let response = CLIENT
+        .get("https://html.duckduckgo.com/html/")
         .query(&[("q", query)])
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) \
+             Chrome/120.0.0.0 Safari/537.36",
+        )
         .send()
         .await?
         .error_for_status()?;

@@ -438,7 +438,8 @@ pub async fn edit_file_by_lines(path: &str, edits: Vec<LineEdit>) -> Result<Stri
     let content = fs::read_to_string(&p).await?;
     let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
 
-    // Sort edits by start_line in descending order so that changing content size doesn't shift the indices of subsequent edits
+    // Sort edits by start_line in descending order so that changing content size doesn't shift the
+    // indices of subsequent edits
     let mut sorted_edits = edits;
     sorted_edits.sort_by(|a, b| b.start_line.cmp(&a.start_line));
 
@@ -519,7 +520,8 @@ pub async fn edit_file_by_lines(path: &str, edits: Vec<LineEdit>) -> Result<Stri
 
             if norm_target != norm_current {
                 anyhow::bail!(
-                    "Target content verification failed at lines {}-{}.\nExpected (normalized): {}\nFound (normalized): {}",
+                    "Target content verification failed at lines {}-{}.\nExpected (normalized): \
+                     {}\nFound (normalized): {}",
                     edit.start_line,
                     edit.end_line,
                     norm_target,

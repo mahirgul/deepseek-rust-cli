@@ -112,12 +112,15 @@ impl Tool for ScreenshotWebappTool {
                     Ok(output) if output.status.success() => {
                         Ok(format!("Screenshot saved to {}", p_str))
                     }
-                    Ok(output) => {
-                        Err(anyhow::anyhow!("Browser exited with error: {}", String::from_utf8_lossy(&output.stderr)))
-                    }
-                    Err(e) => {
-                        Err(anyhow::anyhow!("Failed to start msedge or chrome. Make sure at least one is installed and in your PATH. Error: {}", e))
-                    }
+                    Ok(output) => Err(anyhow::anyhow!(
+                        "Browser exited with error: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    )),
+                    Err(e) => Err(anyhow::anyhow!(
+                        "Failed to start msedge or chrome. Make sure at least one is installed \
+                         and in your PATH. Error: {}",
+                        e
+                    )),
                 }
             }
         }

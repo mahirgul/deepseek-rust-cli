@@ -33,8 +33,8 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
     ));
     tools.push(create_tool(
         "start_background_process",
-        "Start a command in the background, allowing the agent to continuously monitor its \
-         logs and terminate it when needed. Ideal for dev servers.",
+        "Start a command in the background, allowing the agent to continuously monitor its logs \
+         and terminate it when needed. Ideal for dev servers.",
         json!({
             "command": { "type": "string", "description": "The command to run" },
             "cwd": { "type": "string", "description": "Optional: working directory" },
@@ -272,7 +272,8 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
     ));
     tools.push(create_tool(
         "json_update_value",
-        "Read a JSON file, update a value at a specified key path (e.g. 'dependencies.tokio.version'), and save it.",
+        "Read a JSON file, update a value at a specified key path (e.g. \
+         'dependencies.tokio.version'), and save it.",
         json!({
             "file_path": { "type": "string" },
             "key_path": { "type": "string" },
@@ -329,7 +330,8 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
     ));
     tools.push(create_tool(
         "list_symbols",
-        "Parse code symbols (functions, structs, classes, etc.) from a file using lightweight regex.",
+        "Parse code symbols (functions, structs, classes, etc.) from a file using lightweight \
+         regex.",
         json!({
             "file_path": { "type": "string" }
         }),
@@ -346,7 +348,8 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
     ));
     tools.push(create_tool(
         "screenshot_webapp",
-        "Take a screenshot of a local web app or website using Microsoft Edge or Google Chrome in headless mode.",
+        "Take a screenshot of a local web app or website using Microsoft Edge or Google Chrome in \
+         headless mode.",
         json!({
             "url": { "type": "string" },
             "output_path": { "type": "string" }
@@ -393,13 +396,15 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
     ));
     tools.push(create_tool(
         "summarize_project",
-        "Analyze the current project and provide a high-level summary of files, languages, and structure.",
+        "Analyze the current project and provide a high-level summary of files, languages, and \
+         structure.",
         json!({}),
         vec![],
     ));
     tools.push(create_tool(
         "list_todo_tasks",
-        "Search the project for TODO, FIXME, HACK, and BUG comments and list them with file and line info.",
+        "Search the project for TODO, FIXME, HACK, and BUG comments and list them with file and \
+         line info.",
         json!({}),
         vec![],
     ));
@@ -421,7 +426,8 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
     ));
     tools.push(create_tool(
         "project_wide_replace",
-        "Perform a global search and replace across the entire project (filtering target files by glob).",
+        "Perform a global search and replace across the entire project (filtering target files by \
+         glob).",
         json!({
             "old_text": { "type": "string" },
             "new_text": { "type": "string" },
