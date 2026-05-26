@@ -48,4 +48,5 @@ dist/
 # Deep (internal agent state)
 # ====================
 .deep/
+.antigravitycli/
 
