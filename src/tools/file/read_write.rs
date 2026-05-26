@@ -227,3 +227,68 @@ impl Tool for JsonUpdateValueTool {
         Ok(format!("Successfully updated JSON path '{}'.", key_path))
     }
 }
+
+pub struct EditFileByLinesTool;
+#[async_trait]
+impl Tool for EditFileByLinesTool {
+    fn name(&self) -> &str {
+        "edit_file_by_lines"
+    }
+    async fn execute(
+        &self,
+        args: &HashMap<String, Value>,
+        undo: &mut Vec<UndoAction>,
+        _cwd: Option<&Path>,
+    ) -> Result<String> {
+        let path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Missing 'file_path'"))?;
+        let edits_val = args
+            .get("edits")
+            .ok_or_else(|| anyhow::anyhow!("Missing 'edits'"))?;
+
+        let edits: Vec<tools::file_io::LineEdit> = serde_json::from_value(edits_val.clone())?;
+
+        let backup = tokio::fs::read(path).await.ok();
+        undo.push(UndoAction {
+            r#type: "replace".to_string(),
+            path: path.to_string(),
+            backup,
+        });
+
+        tools::file_io::edit_file_by_lines(path, edits).await
+    }
+}
+
+pub struct ApplyDiffPatchTool;
+#[async_trait]
+impl Tool for ApplyDiffPatchTool {
+    fn name(&self) -> &str {
+        "apply_diff_patch"
+    }
+    async fn execute(
+        &self,
+        args: &HashMap<String, Value>,
+        undo: &mut Vec<UndoAction>,
+        _cwd: Option<&Path>,
+    ) -> Result<String> {
+        let path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Missing 'file_path'"))?;
+        let patch_content = args
+            .get("patch_content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Missing 'patch_content'"))?;
+
+        let backup = tokio::fs::read(path).await.ok();
+        undo.push(UndoAction {
+            r#type: "replace".to_string(),
+            path: path.to_string(),
+            backup,
+        });
+
+        tools::file_io::apply_diff_patch(path, patch_content).await
+    }
+}

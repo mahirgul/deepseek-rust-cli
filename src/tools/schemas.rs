@@ -31,6 +31,51 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
         json!({}),
         vec![],
     ));
+    tools.push(create_tool(
+        "start_background_process",
+        "Start a command in the background, allowing the agent to continuously monitor its \
+         logs and terminate it when needed. Ideal for dev servers.",
+        json!({
+            "command": { "type": "string", "description": "The command to run" },
+            "cwd": { "type": "string", "description": "Optional: working directory" },
+            "env": {
+                "type": "object",
+                "description": "Optional: environment variables as key-value pairs"
+            }
+        }),
+        vec!["command"],
+    ));
+    tools.push(create_tool(
+        "read_background_process_logs",
+        "Read accumulated stdout/stderr logs from a running background process.",
+        json!({
+            "pid": { "type": "integer", "description": "The process ID (PID) of the background process" }
+        }),
+        vec!["pid"],
+    ));
+    tools.push(create_tool(
+        "kill_background_process",
+        "Kill a background process started by the agent.",
+        json!({
+            "pid": { "type": "integer", "description": "The process ID (PID) to terminate" }
+        }),
+        vec!["pid"],
+    ));
+    tools.push(create_tool(
+        "list_background_processes",
+        "List all active background processes started by the agent.",
+        json!({}),
+        vec![],
+    ));
+    tools.push(create_tool(
+        "check_port_status",
+        "Check if a local port is occupied, free, or blocked.",
+        json!({
+            "port": { "type": "integer", "description": "Port number to check" },
+            "host": { "type": "string", "description": "Optional: host (defaults to '127.0.0.1')" }
+        }),
+        vec!["port"],
+    ));
 
     // ─── File I/O (always) ──────────────────────────────────
     tools.push(create_tool(
@@ -236,12 +281,68 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
         vec!["file_path", "key_path", "new_value"],
     ));
     tools.push(create_tool(
+        "edit_file_by_lines",
+        "Edit a file by specifying one or more non-overlapping line ranges. This is highly \
+         efficient for modifying code without rewriting the whole file.",
+        json!({
+            "file_path": {
+                "type": "string",
+                "description": "Path to the file to edit"
+            },
+            "edits": {
+                "type": "array",
+                "description": "List of line-based replacement edits",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "start_line": {
+                            "type": "integer",
+                            "description": "The 1-indexed start line number of the range to replace (inclusive)"
+                        },
+                        "end_line": {
+                            "type": "integer",
+                            "description": "The 1-indexed end line number of the range to replace (inclusive)"
+                        },
+                        "replacement_content": {
+                            "type": "string",
+                            "description": "The new content to insert in place of the target line range"
+                        },
+                        "target_content": {
+                            "type": "string",
+                            "description": "Optional: The exact content of the lines being replaced. If provided, it will be verified against the file contents to ensure correctness before applying the edit."
+                        }
+                    },
+                    "required": ["start_line", "end_line", "replacement_content"]
+                }
+            }
+        }),
+        vec!["file_path", "edits"],
+    ));
+    tools.push(create_tool(
+        "apply_diff_patch",
+        "Apply a unified diff patch to a local file. Ideal for complex or multi-hunk code modifications.",
+        json!({
+            "file_path": { "type": "string", "description": "Path to the file to patch" },
+            "patch_content": { "type": "string", "description": "The unified diff content (including hunk headers @@)" }
+        }),
+        vec!["file_path", "patch_content"],
+    ));
+    tools.push(create_tool(
         "list_symbols",
         "Parse code symbols (functions, structs, classes, etc.) from a file using lightweight regex.",
         json!({
             "file_path": { "type": "string" }
         }),
         vec!["file_path"],
+    ));
+    tools.push(create_tool(
+        "view_symbol_contents",
+        "View the full implementation code of a specific symbol (function, class, struct, enum, or impl) from a file.",
+        json!({
+            "file_path": { "type": "string", "description": "Path to the file to inspect" },
+            "symbol_name": { "type": "string", "description": "The name of the symbol/definition to view" }
+        }),
+        vec!["file_path", "symbol_name"],
     ));
     tools.push(create_tool(
         "screenshot_webapp",

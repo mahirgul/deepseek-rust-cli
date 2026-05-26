@@ -12,7 +12,7 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 
 - **🧠 Advanced Reasoning:** Real-time display of the model's thinking process (DeepSeek Reasoning) in a dimmed style with a `🧠 Thinking Process:` header to keep it visually separate from the main response.
 - **💬 Structured Responses:** The final assistant output is clearly prefixed with a `💬 Response:` header.
-- **🛠️ Extensible Toolset:** 40+ tools (including regex file replacements, JSON key-path configs, code symbol listing, DuckDuckGo web search, and headless screenshots) managed by a trait-based registry system.
+- **🛠️ Extensible Toolset:** 65+ tools (including line-based file edits, unified diff patching, background process lifecycle and logs tracking, network port checking, regex replacements, JSON configs, code symbol and AST-like detail parsing, DuckDuckGo web search, headless screenshots, and more) managed by a trait-based registry system.
 - **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands update the agent's environment state.
 - **🎨 Rich TUI Engine:** 
   - **4-Line Dynamic Footer:** Real-time status, folder info, token usage, and command queue.
@@ -20,7 +20,7 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
   - **Syntax Highlighting:** Instant coloring for tool results (JSON, Rust, Python, etc.) and streaming code blocks.
   - **Visual Separators:** Dimmed horizontal separator lines are printed between all operations to keep the log history clean.
 - **⌨️ Advanced Input:** Full cursor control (Home, End, Left, Right), Bracketed Paste support, and persistent history.
-- **🛑 Robust Control:** Instant abort via **Esc** which clears all running and pending queues and cleans up streamed context safely to prevent UI deadlocks.
+- **🛑 Robust Control:** Instant abort via **Esc** which clears all running and pending queues and cleans up streamed context safely to prevent UI deadlocks. Built-in **TerminalGuard** with Ctrl+C listener ensures graceful terminal restoration on unexpected exits.
 - **💡 Command Suggestions:** Mistyped or unrecognized slash commands automatically suggest the closest match using Levenshtein distance.
 - **🔄 Optimized CI/CD:** Parallelized matrix builds with **mold** linker and **sccache** for lightning-fast automation.
 - **🔐 Security:** Mandatory tool approvals and strict path validation. Path traversal warnings bypass global auto-approvals, disable the "Always Approve" option, and enforce individual user permission checks for every request. Uses lexical path normalization and RAII safety guards to prevent privilege leaks.
@@ -91,7 +91,7 @@ deepseek-rust-cli
 - `/forget` - Wipe current history from disk
 - `/auto` - Toggle auto-approve mode
 - `/info` - Show detailed session info
-- `/config <key> [value]` - View or modify configuration
+- `/config <key> [value]` - View or modify configuration (keys: model, base_url, temperature, top_p, presence_penalty, frequency_penalty, max_tokens, max_iterations, max_context_chars, max_tool_output_chars, show_usage, concise_reasoning, debug)
 - `/temperature <value>` - Set model temperature
 - `/retry` - Regenerate last assistant response
 - `/exit`, `/quit` - Close the application

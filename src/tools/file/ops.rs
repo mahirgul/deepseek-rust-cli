@@ -394,3 +394,28 @@ impl Tool for GetFileInfoTool {
         tools::file_io::get_file_info(path).await
     }
 }
+
+pub struct ViewSymbolContentsTool;
+#[async_trait]
+impl Tool for ViewSymbolContentsTool {
+    fn name(&self) -> &str {
+        "view_symbol_contents"
+    }
+    async fn execute(
+        &self,
+        args: &HashMap<String, Value>,
+        _undo: &mut Vec<UndoAction>,
+        _cwd: Option<&Path>,
+    ) -> Result<String> {
+        let path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Missing 'file_path'"))?;
+        let symbol_name = args
+            .get("symbol_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Missing 'symbol_name'"))?;
+
+        tools::file_ops::view_symbol_contents(path, symbol_name).await
+    }
+}

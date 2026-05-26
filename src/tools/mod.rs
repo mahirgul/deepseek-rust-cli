@@ -40,6 +40,11 @@ pub fn get_all_tools() -> Vec<Box<dyn Tool>> {
         // System Tools
         Box::new(system_tools::ShellTool),
         Box::new(system_tools::SystemInfoTool),
+        Box::new(system_tools::StartBackgroundProcessTool),
+        Box::new(system_tools::ReadBackgroundProcessLogsTool),
+        Box::new(system_tools::KillBackgroundProcessTool),
+        Box::new(system_tools::ListBackgroundProcessesTool),
+        Box::new(system_tools::CheckPortStatusTool),
         // Web & Code Tools
         Box::new(web_tools::RunPythonTool),
         Box::new(web_tools::FetchUrlTool),
@@ -47,7 +52,10 @@ pub fn get_all_tools() -> Vec<Box<dyn Tool>> {
         // New Advanced Tools
         Box::new(file::read_write::RegexReplaceTool),
         Box::new(file::read_write::JsonUpdateValueTool),
+        Box::new(file::read_write::EditFileByLinesTool),
+        Box::new(file::read_write::ApplyDiffPatchTool),
         Box::new(file::ops::ListSymbolsTool),
+        Box::new(file::ops::ViewSymbolContentsTool),
         Box::new(file::refactor::MoveCodeBlockTool),
         Box::new(file::refactor::SplitFileTool),
         Box::new(file::refactor::CleanupFileTool),

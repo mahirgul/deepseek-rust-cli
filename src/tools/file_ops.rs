@@ -122,3 +122,136 @@ pub async fn move_code_block(
         Err(anyhow::anyhow!("Code block not found in source file."))
     }
 }
+
+pub async fn view_symbol_contents(path: &str, symbol_name: &str) -> Result<String> {
+    let p = validate_path(path)?;
+    let content = tokio::fs::read_to_string(&p).await?;
+    let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
+
+    let lines: Vec<&str> = content.lines().collect();
+    let mut start_line_idx = None;
+
+    match ext {
+        "rs" | "go" | "js" | "ts" | "java" | "c" | "cpp" | "h" | "hpp" | "cs" => {
+            let patterns = vec![
+                format!(
+                    r"(?m)^(?:\s*pub\s+)?(?:async\s+)?fn\s+{}\b",
+                    regex::escape(symbol_name)
+                ),
+                format!(
+                    r"(?m)^(?:\s*pub\s+)?struct\s+{}\b",
+                    regex::escape(symbol_name)
+                ),
+                format!(
+                    r"(?m)^(?:\s*pub\s+)?class\s+{}\b",
+                    regex::escape(symbol_name)
+                ),
+                format!(
+                    r"(?m)^(?:\s*pub\s+)?enum\s+{}\b",
+                    regex::escape(symbol_name)
+                ),
+                format!(
+                    r"(?m)^(?:\s*pub\s+)?impl(?:\s*<.*>)?\s+{}\b",
+                    regex::escape(symbol_name)
+                ),
+                format!(
+                    r"(?m)^(?:\s*pub\s+)?type\s+{}\b",
+                    regex::escape(symbol_name)
+                ),
+                format!(
+                    r"(?m)^(?:\s*pub\s+)?trait\s+{}\b",
+                    regex::escape(symbol_name)
+                ),
+            ];
+
+            for pattern in patterns {
+                if let Ok(re) = regex::Regex::new(&pattern) {
+                    for (idx, line) in lines.iter().enumerate() {
+                        if re.is_match(line) {
+                            start_line_idx = Some(idx);
+                            break;
+                        }
+                    }
+                }
+                if start_line_idx.is_some() {
+                    break;
+                }
+            }
+
+            if let Some(start_idx) = start_line_idx {
+                let mut brace_count = 0;
+                let mut seen_brace = false;
+                let mut end_line_idx = start_idx;
+
+                for (idx, line) in lines.iter().enumerate().skip(start_idx) {
+                    end_line_idx = idx;
+                    for c in line.chars() {
+                        if c == '{' {
+                            brace_count += 1;
+                            seen_brace = true;
+                        } else if c == '}' {
+                            brace_count -= 1;
+                        }
+                    }
+                    if seen_brace && brace_count <= 0 {
+                        break;
+                    }
+                }
+
+                let result_lines = &lines[start_idx..=end_line_idx];
+                return Ok(result_lines.join("\n"));
+            }
+        }
+        "py" => {
+            let patterns = vec![
+                format!(
+                    r"(?m)^\s*(?:async\s+)?def\s+{}\b",
+                    regex::escape(symbol_name)
+                ),
+                format!(r"(?m)^\s*class\s+{}\b", regex::escape(symbol_name)),
+            ];
+
+            for pattern in patterns {
+                if let Ok(re) = regex::Regex::new(&pattern) {
+                    for (idx, line) in lines.iter().enumerate() {
+                        if re.is_match(line) {
+                            start_line_idx = Some(idx);
+                            break;
+                        }
+                    }
+                }
+                if start_line_idx.is_some() {
+                    break;
+                }
+            }
+
+            if let Some(start_idx) = start_line_idx {
+                let start_line = lines[start_idx];
+                let start_indent = start_line.len() - start_line.trim_start().len();
+                let mut end_line_idx = start_idx;
+
+                for (idx, line) in lines.iter().enumerate().skip(start_idx + 1) {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    let indent = line.len() - line.trim_start().len();
+                    if indent <= start_indent {
+                        break;
+                    }
+                    end_line_idx = idx;
+                }
+
+                let result_lines = &lines[start_idx..=end_line_idx];
+                return Ok(result_lines.join("\n"));
+            }
+        }
+        _ => {}
+    }
+
+    Err(anyhow::anyhow!(
+        "Symbol '{}' not found in file (or unsupported file extension: {})",
+        symbol_name,
+        ext
+    ))
+}
