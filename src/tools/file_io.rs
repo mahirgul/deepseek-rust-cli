@@ -441,7 +441,7 @@ pub async fn edit_file_by_lines(path: &str, edits: Vec<LineEdit>) -> Result<Stri
     // Sort edits by start_line in descending order so that changing content size doesn't shift the
     // indices of subsequent edits
     let mut sorted_edits = edits;
-    sorted_edits.sort_by(|a, b| b.start_line.cmp(&a.start_line));
+    sorted_edits.sort_by_key(|b| std::cmp::Reverse(b.start_line));
 
     // Verify no overlapping edits
     for i in 0..sorted_edits.len().saturating_sub(1) {
@@ -624,7 +624,7 @@ pub async fn apply_diff_patch(path: &str, patch_content: &str) -> Result<String>
     }
 
     // Sort hunks by old_start in descending order to avoid line shifting problems
-    hunks.sort_by(|a, b| b.old_start.cmp(&a.old_start));
+    hunks.sort_by_key(|b| std::cmp::Reverse(b.old_start));
 
     for hunk in hunks {
         if hunk.old_start == 0 {
