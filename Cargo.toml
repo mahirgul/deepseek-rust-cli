@@ -1,8 +1,8 @@
 [package]
 name = "deepseek-rust-cli"
-version = "1.17.1"
+version = "1.17.2"
 edition = "2021"
-authors = ["Mahir Gul <mahirgul@gmail.com>"]
+authors = ["Mahir Gül <mahirgul@gmail.com>"]
 description = "A lightweight, high-speed autonomous CLI system agent port of DeepSeek CLI."
 repository = "https://github.com/mahirgul/deepseek-rust-cli"
 license = "MIT"
