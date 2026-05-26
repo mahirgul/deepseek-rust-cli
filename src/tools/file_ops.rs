@@ -3,7 +3,7 @@ use std::fs;
 use anyhow::Result;
 use md5;
 use sha2::{Digest, Sha256};
-use tokio::{process::Command, task};
+use tokio::task;
 use walkdir::WalkDir;
 
 use crate::tools::base::validate_path;
@@ -30,13 +30,31 @@ pub async fn tree_view(path: Option<String>, max_depth: Option<usize>) -> Result
 pub async fn diff_files(file1: &str, file2: &str) -> Result<String> {
     let p1 = validate_path(file1)?;
     let p2 = validate_path(file2)?;
-    let output = Command::new("diff")
-        .arg("-u")
-        .arg(p1)
-        .arg(p2)
-        .output()
-        .await?;
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+
+    let content1 = tokio::fs::read_to_string(p1).await?;
+    let content2 = tokio::fs::read_to_string(p2).await?;
+
+    let mut output = String::new();
+    for r in diff::lines(&content1, &content2) {
+        match r {
+            diff::Result::Left(l) => {
+                output.push_str("- ");
+                output.push_str(l);
+                output.push('\n');
+            }
+            diff::Result::Both(l, _) => {
+                output.push_str("  ");
+                output.push_str(l);
+                output.push('\n');
+            }
+            diff::Result::Right(r) => {
+                output.push_str("+ ");
+                output.push_str(r);
+                output.push('\n');
+            }
+        }
+    }
+    Ok(output)
 }
 
 pub async fn hash_file(path: String, algorithm: Option<String>) -> Result<String> {
@@ -68,4 +86,39 @@ pub async fn count_lines(path: String) -> Result<String> {
         ))
     })
     .await?
+}
+
+pub async fn move_code_block(
+    src_path: &str,
+    dst_path: &str,
+    block_pattern: &str,
+) -> Result<String> {
+    let sp = validate_path(src_path)?;
+    let dp = validate_path(dst_path)?;
+
+    let src_content = tokio::fs::read_to_string(&sp).await?;
+    let mut dst_content = tokio::fs::read_to_string(&dp).await.unwrap_or_default();
+
+    let re = regex::Regex::new(block_pattern)?;
+    if let Some(mat) = re.find(&src_content) {
+        let block = mat.as_str().to_string();
+        let new_src = src_content.replace(&block, "");
+
+        // Append to destination
+        if !dst_content.is_empty() && !dst_content.ends_with('\n') {
+            dst_content.push('\n');
+        }
+        dst_content.push_str(&block);
+        dst_content.push('\n');
+
+        tokio::fs::write(sp, new_src).await?;
+        tokio::fs::write(dp, dst_content).await?;
+
+        Ok(format!(
+            "Moved code block matching '{}' from {} to {}.",
+            block_pattern, src_path, dst_path
+        ))
+    } else {
+        Err(anyhow::anyhow!("Code block not found in source file."))
+    }
 }

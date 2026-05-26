@@ -13,9 +13,8 @@ use crossterm::{
 };
 use deepseek_rust_cli::{
     agent::{
-        agent::{AgentEvent, DeepSeekAgent},
-        commands::process_command,
-        mentions::process_mentions,
+        agent::DeepSeekAgent, commands::process_command, mentions::process_mentions,
+        types::AgentEvent,
     },
     cli::{Args, ShellType},
     config::{get_api_key, init_workspace, load_config},

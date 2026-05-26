@@ -1,6 +1,6 @@
 [package]
 name = "deepseek-rust-cli"
-version = "1.17.3"
+version = "1.18.0"
 edition = "2021"
 authors = ["Mahir Gül <mahirgul@gmail.com>"]
 description = "A lightweight, high-speed autonomous CLI system agent port of DeepSeek CLI."
@@ -37,6 +37,7 @@ tracing-appender = "0.2"
 walkdir = "2.5"
 glob = "0.3"
 regex = "1.10"
+diff = "0.1.13"
 
 # Git Operations
 git2 = { version = "0.18", features = ["vendored-openssl"] }
@@ -49,6 +50,7 @@ md5 = "0.7"
 html2text = "0.13"
 
 # Utilities
+chrono = "0.4"
 uuid = { version = "1.7", features = ["v4"] }
 dotenvy = "0.15"
 anyhow = "1.0"

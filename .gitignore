@@ -47,9 +47,5 @@ dist/
 # ====================
 # Deep (internal agent state)
 # ====================
-.deep/memory.md
-.deep/config.json
-.deep/history/
-.deep/input_history.json
-.deep/logs/
+.deep/
 

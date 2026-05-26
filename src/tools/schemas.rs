@@ -134,6 +134,59 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
         }),
         vec!["query"],
     ));
+    tools.push(create_tool(
+        "bulk_rename",
+        "Rename multiple files in a directory using a regex pattern.",
+        json!({
+            "path": { "type": "string" },
+            "pattern": { "type": "string" },
+            "replacement": { "type": "string" }
+        }),
+        vec!["path", "pattern", "replacement"],
+    ));
+
+    tools.push(create_tool(
+        "copy_file",
+        "Copy a file from source_path to destination_path natively.",
+        json!({
+            "source_path": { "type": "string" },
+            "destination_path": { "type": "string" }
+        }),
+        vec!["source_path", "destination_path"],
+    ));
+    tools.push(create_tool(
+        "copy_directory",
+        "Recursively copy a directory from source_path to destination_path natively.",
+        json!({
+            "source_path": { "type": "string" },
+            "destination_path": { "type": "string" }
+        }),
+        vec!["source_path", "destination_path"],
+    ));
+    tools.push(create_tool(
+        "create_directory",
+        "Create a directory (and any necessary parent directories) natively.",
+        json!({
+            "directory_path": { "type": "string" }
+        }),
+        vec!["directory_path"],
+    ));
+    tools.push(create_tool(
+        "file_exists",
+        "Check if a file or directory exists at the given path.",
+        json!({
+            "file_path": { "type": "string" }
+        }),
+        vec!["file_path"],
+    ));
+    tools.push(create_tool(
+        "get_file_info",
+        "Get metadata for a file (type, size, timestamps, permissions) natively.",
+        json!({
+            "file_path": { "type": "string" }
+        }),
+        vec!["file_path"],
+    ));
 
     // ─── Code & Web (always) ───────────────────────────────
     tools.push(create_tool(
@@ -206,6 +259,74 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
             "query": { "type": "string" }
         }),
         vec!["query"],
+    ));
+
+    // ─── Refactoring & Advanced Ops ────────────────────────
+    tools.push(create_tool(
+        "move_code_block",
+        "Move a code block (function, struct, etc.) from one file to another using regex.",
+        json!({
+            "source_path": { "type": "string" },
+            "destination_path": { "type": "string" },
+            "block_pattern": { "type": "string" }
+        }),
+        vec!["source_path", "destination_path", "block_pattern"],
+    ));
+    tools.push(create_tool(
+        "split_file",
+        "Split a file into multiple parts based on a regex pattern.",
+        json!({
+            "file_path": { "type": "string" },
+            "split_pattern": { "type": "string" },
+            "output_prefix": { "type": "string" }
+        }),
+        vec!["file_path", "split_pattern", "output_prefix"],
+    ));
+    tools.push(create_tool(
+        "cleanup_file",
+        "Clean up a file by removing trailing spaces and normalizing line endings.",
+        json!({
+            "file_path": { "type": "string" }
+        }),
+        vec!["file_path"],
+    ));
+    tools.push(create_tool(
+        "summarize_project",
+        "Analyze the current project and provide a high-level summary of files, languages, and structure.",
+        json!({}),
+        vec![],
+    ));
+    tools.push(create_tool(
+        "list_todo_tasks",
+        "Search the project for TODO, FIXME, HACK, and BUG comments and list them with file and line info.",
+        json!({}),
+        vec![],
+    ));
+    tools.push(create_tool(
+        "project_checkpoint",
+        "Create a project-wide backup archive of the source code and configuration.",
+        json!({
+            "name": { "type": "string", "description": "Short mnemonic name for the checkpoint" }
+        }),
+        vec!["name"],
+    ));
+    tools.push(create_tool(
+        "restore_checkpoint",
+        "Restore the project from a previously created checkpoint archive.",
+        json!({
+            "checkpoint_file": { "type": "string", "description": "Filename of the .tar.gz checkpoint" }
+        }),
+        vec!["checkpoint_file"],
+    ));
+    tools.push(create_tool(
+        "project_wide_replace",
+        "Perform a global search and replace across the entire project (filtering target files by glob).",
+        json!({
+            "old_text": { "type": "string" },
+            "new_text": { "type": "string" },
+            "glob": { "type": "string", "description": "Glob pattern for files, e.g. '**/*.rs'" }
+        }),
+        vec!["old_text", "new_text"],
     ));
 
     // ─── Local Git Operations (only if in a git repo) ──────

@@ -9,7 +9,7 @@ pub mod system;
 pub mod web_ops;
 
 // Tool implementations
-pub mod file_tools;
+pub mod file;
 pub mod git_tools;
 pub mod github_tools;
 pub mod system_tools;
@@ -20,17 +20,23 @@ use crate::tools::base::Tool;
 pub fn get_all_tools() -> Vec<Box<dyn Tool>> {
     vec![
         // File Tools
-        Box::new(file_tools::ReadFileTool),
-        Box::new(file_tools::WriteFileTool),
-        Box::new(file_tools::ReplaceTextTool),
-        Box::new(file_tools::DeleteFileTool),
-        Box::new(file_tools::RenameFileTool),
-        Box::new(file_tools::ListDirectoryTool),
-        Box::new(file_tools::TreeViewTool),
-        Box::new(file_tools::DiffFilesTool),
-        Box::new(file_tools::HashFileTool),
-        Box::new(file_tools::CountLinesTool),
-        Box::new(file_tools::SearchFilesTool),
+        Box::new(file::read_write::ReadFileTool),
+        Box::new(file::read_write::WriteFileTool),
+        Box::new(file::read_write::ReplaceTextTool),
+        Box::new(file::ops::DeleteFileTool),
+        Box::new(file::ops::RenameFileTool),
+        Box::new(file::ops::CopyFileTool),
+        Box::new(file::ops::CopyDirectoryTool),
+        Box::new(file::ops::CreateDirectoryTool),
+        Box::new(file::ops::FileExistsTool),
+        Box::new(file::ops::GetFileInfoTool),
+        Box::new(file::navigation::ListDirectoryTool),
+        Box::new(file::navigation::TreeViewTool),
+        Box::new(file::diff::DiffFilesTool),
+        Box::new(file::ops::HashFileTool),
+        Box::new(file::ops::CountLinesTool),
+        Box::new(file::ops::SearchFilesTool),
+        Box::new(file::ops::BulkRenameTool),
         // System Tools
         Box::new(system_tools::ShellTool),
         Box::new(system_tools::SystemInfoTool),
@@ -39,9 +45,17 @@ pub fn get_all_tools() -> Vec<Box<dyn Tool>> {
         Box::new(web_tools::FetchUrlTool),
         Box::new(web_tools::GetEnvVarTool),
         // New Advanced Tools
-        Box::new(file_tools::RegexReplaceTool),
-        Box::new(file_tools::JsonUpdateValueTool),
-        Box::new(file_tools::ListSymbolsTool),
+        Box::new(file::read_write::RegexReplaceTool),
+        Box::new(file::read_write::JsonUpdateValueTool),
+        Box::new(file::ops::ListSymbolsTool),
+        Box::new(file::refactor::MoveCodeBlockTool),
+        Box::new(file::refactor::SplitFileTool),
+        Box::new(file::refactor::CleanupFileTool),
+        Box::new(file::analysis::ProjectSummaryTool),
+        Box::new(file::analysis::ListTodoTasksTool),
+        Box::new(file::refactor::ProjectCheckpointTool),
+        Box::new(file::refactor::RestoreCheckpointTool),
+        Box::new(file::refactor::ProjectWideReplaceTool),
         Box::new(web_tools::ScreenshotWebappTool),
         Box::new(web_tools::WebSearchDuckDuckGoTool),
         // Git Tools

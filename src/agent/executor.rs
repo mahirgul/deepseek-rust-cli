@@ -8,7 +8,7 @@ use futures::future::join_all;
 use once_cell::sync::Lazy;
 use serde_json::Value;
 
-use crate::{agent::agent::UndoAction, tools, tools::base::ToolRegistry};
+use crate::{agent::types::UndoAction, tools, tools::base::ToolRegistry};
 
 const DEFAULT_TOOL_TIMEOUT: Duration = Duration::from_secs(120);
 const LONG_TOOL_TIMEOUT: Duration = Duration::from_secs(600);

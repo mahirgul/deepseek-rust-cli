@@ -84,7 +84,7 @@ const DEFAULT_SYSTEM_PROMPT: &str = "You are a terminal-based AI coding assistan
                                      via {shell}.
 Be concise and practical. You have full access to the workspace to read/write files and execute \
                                      commands.
-Explain your actions briefly and always verify file contents before modification.";
+Explain your actions briefly. To save tokens: do not print full file contents in your response (use diffs/summaries instead), do not repeat tool outputs verbatim, and keep reasoning and responses as short as possible.";
 
 /// Initialize the .deep directory structure in the current workspace.
 /// Creates .deep/ folder with config.json, memory.md, and history/ subdirectory

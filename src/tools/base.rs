@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
 
-use crate::agent::agent::UndoAction;
+use crate::agent::types::UndoAction;
 
 #[async_trait]
 pub trait Tool: Send + Sync {

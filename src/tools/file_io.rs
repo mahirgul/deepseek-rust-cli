@@ -124,6 +124,79 @@ pub async fn rename_file(src: &str, dst: &str) -> Result<()> {
     Ok(())
 }
 
+pub async fn bulk_rename(path: &str, pattern: &str, replacement: &str) -> Result<String> {
+    let p = validate_path(path)?;
+    let re = Regex::new(pattern)?;
+    let mut count = 0;
+    let mut entries = fs::read_dir(p).await?;
+
+    while let Some(entry) = entries.next_entry().await? {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if re.is_match(&name) {
+            let new_name = re.replace_all(&name, replacement).to_string();
+            let src = entry.path();
+            let dst = src.with_file_name(new_name);
+            fs::rename(src, dst).await?;
+            count += 1;
+        }
+    }
+    Ok(format!("Successfully renamed {} files.", count))
+}
+
+pub async fn cleanup_file(path: &str) -> Result<String> {
+    let p = validate_path(path)?;
+    let content = fs::read_to_string(&p).await?;
+    let mut cleaned_lines = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim_end();
+        if !trimmed.is_empty() || !cleaned_lines.is_empty() {
+            cleaned_lines.push(trimmed);
+        }
+    }
+
+    // Remove trailing empty lines
+    while let Some(last) = cleaned_lines.last() {
+        if last.is_empty() {
+            cleaned_lines.pop();
+        } else {
+            break;
+        }
+    }
+
+    let cleaned_content = cleaned_lines.join("\n");
+    fs::write(p, &cleaned_content).await?;
+    Ok("File cleaned up (trailing spaces removed, line endings normalized).".to_string())
+}
+
+pub async fn split_file(path: &str, pattern: &str, output_prefix: &str) -> Result<String> {
+    let p = validate_path(path)?;
+    let content = fs::read_to_string(&p).await?;
+    let re = Regex::new(pattern)?;
+    let mut parts = Vec::new();
+    let mut last_idx = 0;
+
+    for mat in re.find_iter(&content) {
+        if mat.start() > last_idx {
+            parts.push(&content[last_idx..mat.start()]);
+        }
+        last_idx = mat.start();
+    }
+    parts.push(&content[last_idx..]);
+
+    let mut count = 0;
+    for part in parts {
+        if part.trim().is_empty() {
+            continue;
+        }
+        let out_path = format!("{}_{}.txt", output_prefix, count + 1);
+        fs::write(out_path, part).await?;
+        count += 1;
+    }
+
+    Ok(format!("File split into {} parts.", count))
+}
+
 /// Search files for a text pattern using native Rust (no shell process).
 /// Uses literal search by default, with regex support.
 /// Returns matching lines with file path and line number.
@@ -274,6 +347,84 @@ fn glob_match(pattern: &str, text: &str) -> bool {
     true
 }
 
+pub async fn copy_local_file(src: &str, dst: &str) -> Result<()> {
+    let s = validate_path(src)?;
+    let d = validate_path(dst)?;
+    if let Some(parent) = d.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+    fs::copy(s, d).await?;
+    Ok(())
+}
+
+pub async fn copy_directory(src: &str, dst: &str) -> Result<()> {
+    let s = validate_path(src)?;
+    let d = validate_path(dst)?;
+
+    if !s.is_dir() {
+        anyhow::bail!("Source path is not a directory");
+    }
+
+    let src_clone = s.clone();
+    let dst_clone = d.clone();
+
+    tokio::task::spawn_blocking(move || {
+        for entry in WalkDir::new(&src_clone) {
+            let entry = entry?;
+            let path = entry.path();
+            let relative = path.strip_prefix(&src_clone)?;
+            let target = dst_clone.join(relative);
+
+            if entry.file_type().is_dir() {
+                std::fs::create_dir_all(&target)?;
+            } else {
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::copy(path, target)?;
+            }
+        }
+        Ok::<(), anyhow::Error>(())
+    })
+    .await??;
+
+    Ok(())
+}
+
+pub async fn create_directory(path: &str) -> Result<()> {
+    let p = validate_path(path)?;
+    fs::create_dir_all(p).await?;
+    Ok(())
+}
+
+pub async fn file_exists(path: &str) -> Result<bool> {
+    let p = validate_path(path)?;
+    Ok(p.exists())
+}
+
+pub async fn get_file_info(path: &str) -> Result<String> {
+    let p = validate_path(path)?;
+    let meta = fs::metadata(&p).await?;
+
+    let file_type = if meta.is_dir() { "Directory" } else { "File" };
+    let size = meta.len();
+    let modified = meta
+        .modified()
+        .ok()
+        .map(|t| {
+            let datetime: chrono::DateTime<chrono::Local> = t.into();
+            datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+        })
+        .unwrap_or_else(|| "Unknown".to_string());
+
+    let permissions = format!("{:?}", meta.permissions());
+
+    Ok(format!(
+        "Path: {}\nType: {}\nSize: {} bytes\nModified: {}\nPermissions: {}",
+        path, file_type, size, modified, permissions
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -356,5 +507,91 @@ mod tests {
             .unwrap();
 
         assert!(result.contains("No matches found"));
+    }
+
+    #[tokio::test]
+    async fn test_copy_local_file() {
+        let dir = tempdir_in_cwd();
+        let src_path = dir.path().join("src.txt");
+        let dst_path = dir.path().join("dst.txt");
+        fs::write(&src_path, "copy test content").unwrap();
+
+        let src_str = src_path.to_str().unwrap();
+        let dst_str = dst_path.to_str().unwrap();
+        copy_local_file(src_str, dst_str).await.unwrap();
+
+        let dst_content = fs::read_to_string(&dst_path).unwrap();
+        assert_eq!(dst_content, "copy test content");
+    }
+
+    #[tokio::test]
+    async fn test_copy_directory() {
+        let dir = tempdir_in_cwd();
+        let src_dir = dir.path().join("src_dir");
+        let dst_dir = dir.path().join("dst_dir");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("a.txt"), "file a").unwrap();
+        fs::write(src_dir.join("b.txt"), "file b").unwrap();
+
+        let src_str = src_dir.to_str().unwrap();
+        let dst_str = dst_dir.to_str().unwrap();
+        copy_directory(src_str, dst_str).await.unwrap();
+
+        assert!(dst_dir.join("a.txt").exists());
+        assert!(dst_dir.join("b.txt").exists());
+        assert_eq!(fs::read_to_string(dst_dir.join("a.txt")).unwrap(), "file a");
+    }
+
+    #[tokio::test]
+    async fn test_create_directory() {
+        let dir = tempdir_in_cwd();
+        let new_dir = dir.path().join("nested/folder/here");
+        let path_str = new_dir.to_str().unwrap();
+        create_directory(path_str).await.unwrap();
+
+        assert!(new_dir.exists());
+        assert!(new_dir.is_dir());
+    }
+
+    #[tokio::test]
+    async fn test_file_exists() {
+        let dir = tempdir_in_cwd();
+        let file_path = dir.path().join("exists.txt");
+        let path_str = file_path.to_str().unwrap();
+        assert!(!file_exists(path_str).await.unwrap());
+
+        fs::write(&file_path, "").unwrap();
+        assert!(file_exists(path_str).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_get_file_info() {
+        let dir = tempdir_in_cwd();
+        let file_path = dir.path().join("info.txt");
+        fs::write(&file_path, "hello info").unwrap();
+        let path_str = file_path.to_str().unwrap();
+
+        let info = get_file_info(path_str).await.unwrap();
+        assert!(info.contains("Path:"));
+        assert!(info.contains("Type: File"));
+        assert!(info.contains("Size: 10 bytes"));
+    }
+
+    #[tokio::test]
+    async fn test_native_diff_files() {
+        let dir = tempdir_in_cwd();
+        let f1 = dir.path().join("f1.txt");
+        let f2 = dir.path().join("f2.txt");
+        fs::write(&f1, "line 1\nline 2\n").unwrap();
+        fs::write(&f2, "line 1\nline 2 mod\n").unwrap();
+
+        let f1_str = f1.to_str().unwrap();
+        let f2_str = f2.to_str().unwrap();
+        let diff = crate::tools::file_ops::diff_files(f1_str, f2_str)
+            .await
+            .unwrap();
+
+        assert!(diff.contains("- line 2"));
+        assert!(diff.contains("+ line 2 mod"));
     }
 }

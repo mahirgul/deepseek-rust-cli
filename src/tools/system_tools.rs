@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
 
-use crate::{agent::agent::UndoAction, tools, tools::base::Tool};
+use crate::{agent::types::UndoAction, tools, tools::base::Tool};
 
 pub struct SystemInfoTool;
 #[async_trait]
