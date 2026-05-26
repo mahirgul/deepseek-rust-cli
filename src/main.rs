@@ -222,7 +222,13 @@ async fn main() -> Result<()> {
         run_id,
     );
 
-    let res = event_loop.run().await;
+    let res = tokio::select! {
+        r = event_loop.run() => r,
+        _ = tokio::signal::ctrl_c() => {
+            tracing::warn!("Ctrl+C signal received, shutting down gracefully");
+            Ok(String::new())
+        }
+    };
 
     execute!(
         io::stdout(),

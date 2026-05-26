@@ -189,6 +189,30 @@ impl App {
     }
 }
 
+struct TerminalGuard;
+
+impl TerminalGuard {
+    fn new() -> io::Result<Self> {
+        enable_raw_mode()?;
+        Ok(Self)
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        let _ = disable_raw_mode();
+        let mut stdout = io::stdout();
+        let _ = execute!(
+            stdout,
+            style::Print("\x1b[r"), // Reset scrolling region to full screen
+            terminal::Clear(terminal::ClearType::All),
+            cursor::MoveTo(0, 0),
+            DisableBracketedPaste,
+            cursor::Show,
+        );
+    }
+}
+
 pub struct EventLoop {
     rx: mpsc::Receiver<TuiEvent>,
     app_tx: mpsc::Sender<ApprovalResult>,
@@ -257,7 +281,7 @@ impl EventLoop {
             }
         }
 
-        enable_raw_mode()?;
+        let _guard = TerminalGuard::new()?;
         let mut stdout = io::stdout();
         // Enable bracketed paste so multi-line pastes come as a single event
         execute!(stdout, EnableBracketedPaste)?;
@@ -296,6 +320,11 @@ impl EventLoop {
                 TuiEvent::Input(key) => {
                     if key.kind == KeyEventKind::Press {
                         if app.awaiting_approval {
+                            if (key.code == KeyCode::Char('c') || key.code == KeyCode::Char('C'))
+                                && key.modifiers.contains(event::KeyModifiers::CONTROL)
+                            {
+                                break;
+                            }
                             match key.code {
                                 KeyCode::Char('y') | KeyCode::Char('Y') => {
                                     app.awaiting_approval = false;
