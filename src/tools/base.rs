@@ -53,6 +53,30 @@ impl ToolRegistry {
     }
 }
 
+pub static ALLOW_PATH_TRAVERSAL: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+pub struct PathTraversalGuard {
+    active: bool,
+}
+
+impl PathTraversalGuard {
+    pub fn new(active: bool) -> Self {
+        if active {
+            ALLOW_PATH_TRAVERSAL.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        Self { active }
+    }
+}
+
+impl Drop for PathTraversalGuard {
+    fn drop(&mut self) {
+        if self.active {
+            ALLOW_PATH_TRAVERSAL.store(false, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+}
+
 pub fn validate_path(path: &str) -> Result<std::path::PathBuf> {
     let p = std::path::PathBuf::from(path);
     let abs = if p.is_absolute() {
@@ -63,22 +87,40 @@ pub fn validate_path(path: &str) -> Result<std::path::PathBuf> {
         a
     };
 
-    // Canonicalize to resolve '..' and symlinks
-    let canonical = match std::fs::canonicalize(&abs) {
+    let normalized = crate::agent::security::normalize_path(&abs);
+
+    let canonical = match std::fs::canonicalize(&normalized) {
         Ok(c) => c,
         Err(_) => {
-            // If it doesn't exist, we still want to check the parent
-            if let Some(parent) = abs.parent() {
-                let can_parent = std::fs::canonicalize(parent)?;
-                can_parent.join(abs.file_name().unwrap_or_default())
-            } else {
-                abs
+            let mut ancestor = normalized.as_path();
+            let mut components = Vec::new();
+            let mut resolved = normalized.clone();
+            while let Some(parent) = ancestor.parent() {
+                if let Some(file_name) = ancestor.file_name() {
+                    components.push(file_name);
+                }
+                if parent.exists() {
+                    if let Ok(can_parent) = std::fs::canonicalize(parent) {
+                        let mut result = can_parent;
+                        for comp in components.iter().rev() {
+                            result.push(comp);
+                        }
+                        resolved = result;
+                        break;
+                    }
+                    break;
+                }
+                ancestor = parent;
             }
+            resolved
         }
     };
 
     let cwd = std::fs::canonicalize(std::env::current_dir()?)?;
-    if !canonical.starts_with(&cwd) && !path.is_empty() {
+    if !canonical.starts_with(&cwd)
+        && !path.is_empty()
+        && !ALLOW_PATH_TRAVERSAL.load(std::sync::atomic::Ordering::SeqCst)
+    {
         anyhow::bail!("Path traversal detected: access to '{}' is denied", path);
     }
 

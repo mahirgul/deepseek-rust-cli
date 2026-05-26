@@ -427,15 +427,22 @@ impl DeepSeekAgent {
                 let args: serde_json::Map<String, serde_json::Value> =
                     serde_json::from_str(&tc.function.arguments).unwrap_or_default();
 
-                let needs_approval = (crate::agent::security::get_approval_required_tools()
+                let is_traversal = crate::agent::security::is_path_traversal_arg(&args);
+                let needs_approval = ((crate::agent::security::get_approval_required_tools()
                     .contains(name)
                     || crate::agent::security::is_dangerous_tool(name, &args))
-                    && !self.config.debug;
+                    && !self.config.debug)
+                    || is_traversal;
 
-                let (approved, always) = if needs_approval && !self.auto_approve {
+                let (approved, always) = if needs_approval && (!self.auto_approve || is_traversal) {
+                    let approval_name = if is_traversal {
+                        format!("path_traversal_warning:{}", tc.function.name)
+                    } else {
+                        tc.function.name.clone()
+                    };
                     if tx
                         .send(AgentEvent::ApprovalRequest {
-                            name: tc.function.name.clone(),
+                            name: approval_name,
                             args: tc.function.arguments.clone(),
                         })
                         .await
@@ -454,7 +461,13 @@ impl DeepSeekAgent {
                         res = approval_rx.recv() => {
                             match res {
                                 Some(ApprovalResult::Yes) => (true, false),
-                                Some(ApprovalResult::Always) => (true, true),
+                                Some(ApprovalResult::Always) => {
+                                    if is_traversal {
+                                        (true, false)
+                                    } else {
+                                        (true, true)
+                                    }
+                                }
                                 _ => (false, false),
                             }
                         }
@@ -537,6 +550,8 @@ impl DeepSeekAgent {
                         }
                     }
 
+                    let has_traversal = crate::agent::security::is_path_traversal_arg(&args);
+                    let _guard = crate::tools::base::PathTraversalGuard::new(has_traversal);
                     let (result, _cached) = execute_tool_cached(
                         &name,
                         &args,
@@ -548,7 +563,12 @@ impl DeepSeekAgent {
                     vec![(0, result, temp_undo)]
                 } else {
                     // Multiple tools - execute in parallel
-                    execute_tools_parallel(&tool_inputs, Some(self.cwd.clone())).await
+                    let has_traversal = tool_inputs
+                        .iter()
+                        .any(|(_, args)| crate::agent::security::is_path_traversal_arg(args));
+                    let _guard = crate::tools::base::PathTraversalGuard::new(has_traversal);
+                    let res = execute_tools_parallel(&tool_inputs, Some(self.cwd.clone())).await;
+                    res
                 };
 
                 // Notify end and add tool messages

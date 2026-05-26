@@ -68,3 +68,119 @@ pub fn get_approval_required_tools() -> HashSet<String> {
     .map(|s| s.to_string())
     .collect()
 }
+
+pub fn is_path_traversal_arg(args: &serde_json::Map<String, Value>) -> bool {
+    let path_keys = [
+        "file_path",
+        "path",
+        "source_path",
+        "destination_path",
+        "output_path",
+        "file1",
+        "file2",
+        "dest",
+        "files",
+        "dir",
+    ];
+    for key in path_keys {
+        if let Some(val) = args.get(key).and_then(|v| v.as_str()) {
+            if is_traversal_path(val) {
+                return true;
+            }
+            for part in val.split([',', ';']) {
+                let part_trimmed = part.trim();
+                if !part_trimmed.is_empty() && is_traversal_path(part_trimmed) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+pub fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut components = path.components().peekable();
+    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek() {
+        let buf = std::path::PathBuf::from(c.as_os_str());
+        components.next();
+        buf
+    } else {
+        std::path::PathBuf::new()
+    };
+
+    let mut normalized = Vec::new();
+    for component in components {
+        match component {
+            Component::Prefix(..) => unreachable!(),
+            Component::RootDir => {
+                ret.push(Component::RootDir.as_os_str());
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if let Some(Component::Normal(_)) = normalized.last() {
+                    normalized.pop();
+                } else if ret.as_os_str().is_empty() || ret == std::path::Path::new("/") {
+                    normalized.push(Component::ParentDir);
+                }
+            }
+            Component::Normal(c) => {
+                normalized.push(Component::Normal(c));
+            }
+        }
+    }
+    for component in normalized {
+        ret.push(component.as_os_str());
+    }
+    ret
+}
+
+fn canonicalize_any(path: &std::path::Path) -> std::path::PathBuf {
+    match std::fs::canonicalize(path) {
+        Ok(c) => c,
+        Err(_) => {
+            let mut ancestor = path;
+            let mut components = Vec::new();
+            while let Some(parent) = ancestor.parent() {
+                if let Some(file_name) = ancestor.file_name() {
+                    components.push(file_name);
+                }
+                if parent.exists() {
+                    if let Ok(can_parent) = std::fs::canonicalize(parent) {
+                        let mut result = can_parent;
+                        for comp in components.iter().rev() {
+                            result.push(comp);
+                        }
+                        return result;
+                    }
+                    break;
+                }
+                ancestor = parent;
+            }
+            path.to_path_buf()
+        }
+    }
+}
+
+fn is_traversal_path(path_str: &str) -> bool {
+    let p = std::path::PathBuf::from(path_str);
+    let abs = if p.is_absolute() {
+        p
+    } else {
+        match std::env::current_dir() {
+            Ok(mut a) => {
+                a.push(p);
+                a
+            }
+            Err(_) => return false,
+        }
+    };
+    let normalized = normalize_path(&abs);
+    let canonical = canonicalize_any(&normalized);
+    if let Ok(cwd) = std::env::current_dir().and_then(std::fs::canonicalize) {
+        if !canonical.starts_with(&cwd) && !path_str.is_empty() {
+            return true;
+        }
+    }
+    false
+}

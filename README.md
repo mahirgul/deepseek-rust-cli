@@ -12,18 +12,18 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 
 - **🧠 Advanced Reasoning:** Real-time display of the model's thinking process (DeepSeek Reasoning) in a dimmed style with a `🧠 Thinking Process:` header to keep it visually separate from the main response.
 - **💬 Structured Responses:** The final assistant output is clearly prefixed with a `💬 Response:` header.
-- **🛠️ Extensible Toolset:** 35+ tools managed by a trait-based registry system for reliable and fast execution.
+- **🛠️ Extensible Toolset:** 40+ tools (including regex file replacements, JSON key-path configs, code symbol listing, DuckDuckGo web search, and headless screenshots) managed by a trait-based registry system.
 - **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands update the agent's environment state.
 - **🎨 Rich TUI Engine:** 
   - **4-Line Dynamic Footer:** Real-time status, folder info, token usage, and command queue.
   - **Horizontal Queue:** Visualize pending and executing tasks at a glance.
   - **Syntax Highlighting:** Instant coloring for tool results (JSON, Rust, Python, etc.) and streaming code blocks.
-  - **Visual Separators:** Dimmed horizontal separator lines are printed between all operations (Thinking, Response, Tool executions, Approvals, Errors, and Completions) to keep the log history clean and readable.
+  - **Visual Separators:** Dimmed horizontal separator lines are printed between all operations to keep the log history clean.
 - **⌨️ Advanced Input:** Full cursor control (Home, End, Left, Right), Bracketed Paste support, and persistent history.
-- **🛑 Robust Control:** Instant abort via **Esc** with automatic message cleanup to keep conversation context valid.
-- **💡 Command Suggestions:** Mistyped or unrecognized slash commands automatically suggest the closest match using Levenshtein distance instead of executing them as chat.
+- **🛑 Robust Control:** Instant abort via **Esc** which clears all running and pending queues and cleans up streamed context safely to prevent UI deadlocks.
+- **💡 Command Suggestions:** Mistyped or unrecognized slash commands automatically suggest the closest match using Levenshtein distance.
 - **🔄 Optimized CI/CD:** Parallelized matrix builds with **mold** linker and **sccache** for lightning-fast automation.
-- **🔐 Security:** Mandatory tool approvals and strict path validation to prevent unauthorized operations.
+- **🔐 Security:** Mandatory tool approvals and strict path validation. Path traversal warnings bypass global auto-approvals, disable the "Always Approve" option, and enforce individual user permission checks for every request. Uses lexical path normalization and RAII safety guards to prevent privilege leaks.
 
 ## 📖 Documentation
 

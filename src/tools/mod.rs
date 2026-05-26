@@ -38,6 +38,12 @@ pub fn get_all_tools() -> Vec<Box<dyn Tool>> {
         Box::new(web_tools::RunPythonTool),
         Box::new(web_tools::FetchUrlTool),
         Box::new(web_tools::GetEnvVarTool),
+        // New Advanced Tools
+        Box::new(file_tools::RegexReplaceTool),
+        Box::new(file_tools::JsonUpdateValueTool),
+        Box::new(file_tools::ListSymbolsTool),
+        Box::new(web_tools::ScreenshotWebappTool),
+        Box::new(web_tools::WebSearchDuckDuckGoTool),
         // Git Tools
         Box::new(git_tools::GitStatusTool),
         Box::new(git_tools::GitDiffTool),

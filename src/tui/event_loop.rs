@@ -79,6 +79,7 @@ struct App {
     log_y: u16,
     reasoning_started: bool,
     content_started: bool,
+    is_path_traversal_warning: bool,
 }
 
 impl App {
@@ -106,6 +107,7 @@ impl App {
             log_y: 0,
             reasoning_started: false,
             content_started: false,
+            is_path_traversal_warning: false,
         }
     }
 
@@ -169,6 +171,7 @@ impl App {
         self.task_start_time = None;
         self.job_start_time = None;
         self.awaiting_approval = false;
+        self.is_path_traversal_warning = false;
         self.aborted = false;
         // Pop the just-completed command from queue
         if !self.queued_commands.is_empty() {
@@ -188,7 +191,6 @@ impl App {
 
 pub struct EventLoop {
     rx: mpsc::Receiver<TuiEvent>,
-    rx_tx: mpsc::Sender<TuiEvent>,
     app_tx: mpsc::Sender<ApprovalResult>,
     cmd_tx: mpsc::Sender<(usize, String)>,
     agent: Arc<Mutex<DeepSeekAgent>>,
@@ -200,7 +202,7 @@ pub struct EventLoop {
 impl EventLoop {
     pub fn new(
         rx: mpsc::Receiver<TuiEvent>,
-        rx_tx: mpsc::Sender<TuiEvent>,
+        _rx_tx: mpsc::Sender<TuiEvent>,
         app_tx: mpsc::Sender<ApprovalResult>,
         cmd_tx: mpsc::Sender<(usize, String)>,
         agent: Arc<Mutex<DeepSeekAgent>>,
@@ -209,13 +211,36 @@ impl EventLoop {
     ) -> Self {
         Self {
             rx,
-            rx_tx,
             app_tx,
             cmd_tx,
             agent,
             cancel_token,
             run_id,
         }
+    }
+
+    fn handle_abort(&self, app: &mut App, stdout: &mut io::Stdout) -> Result<()> {
+        if app.queued_commands.is_empty() {
+            return Ok(());
+        }
+        // Cancel via shared token — no agent lock needed, avoids deadlock
+        if let Ok(token) = self.cancel_token.lock() {
+            token.cancel();
+        } else {
+            tracing::warn!("Cancel token mutex poisoned during abort");
+        }
+        // Increment run_id to discard any queued operations in cmd_rx
+        self.run_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        // Set aborted flag so we ignore any in-flight AgentEvents
+        app.aborted = true;
+        app.current_task = None;
+        app.task_start_time = None;
+        app.job_start_time = None;
+        app.awaiting_approval = false;
+        app.queued_commands.clear();
+        write_to_output(stdout, app, "🛑 Operation aborted by user.\n".to_string())?;
+        Ok(())
     }
 
     pub async fn run(mut self) -> Result<String> {
@@ -255,30 +280,9 @@ impl EventLoop {
         while let Some(event) = self.rx.recv().await {
             match event {
                 TuiEvent::Abort => {
-                    if app.queued_commands.is_empty() {
-                        continue;
+                    if !app.queued_commands.is_empty() {
+                        self.handle_abort(&mut app, &mut stdout)?;
                     }
-                    // Cancel via shared token — no agent lock needed, avoids deadlock
-                    if let Ok(token) = self.cancel_token.lock() {
-                        token.cancel();
-                    } else {
-                        tracing::warn!("Cancel token mutex poisoned during abort");
-                    }
-                    // Increment run_id to discard any queued operations in cmd_rx
-                    self.run_id
-                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    // Set aborted flag so we ignore any in-flight AgentEvents
-                    app.aborted = true;
-                    app.current_task = None;
-                    app.task_start_time = None;
-                    app.job_start_time = None;
-                    app.awaiting_approval = false;
-                    app.queued_commands.clear();
-                    write_to_output(
-                        &mut stdout,
-                        &mut app,
-                        "🛑 Operation aborted by user.\n".to_string(),
-                    )?;
                 }
                 TuiEvent::Paste(text) => {
                     // Insert pasted text at cursor position (preserving newlines)
@@ -301,7 +305,7 @@ impl EventLoop {
                                         &mut app,
                                         "✅ Approved\n".green().to_string(),
                                     )?;
-                                    let _ = self.app_tx.send(ApprovalResult::Yes).await;
+                                    let _ = self.app_tx.try_send(ApprovalResult::Yes);
                                 }
                                 KeyCode::Char('n') | KeyCode::Char('N') => {
                                     app.awaiting_approval = false;
@@ -311,9 +315,12 @@ impl EventLoop {
                                         &mut app,
                                         "❌ Rejected\n".red().to_string(),
                                     )?;
-                                    let _ = self.app_tx.send(ApprovalResult::No).await;
+                                    let _ = self.app_tx.try_send(ApprovalResult::No);
                                 }
                                 KeyCode::Char('a') | KeyCode::Char('A') => {
+                                    if app.is_path_traversal_warning {
+                                        continue;
+                                    }
                                     app.awaiting_approval = false;
                                     app.current_task = None;
                                     write_to_output(
@@ -321,13 +328,14 @@ impl EventLoop {
                                         &mut app,
                                         "🛡️ Always Approved\n".blue().to_string(),
                                     )?;
-                                    let _ = self.app_tx.send(ApprovalResult::Always).await;
+                                    let _ = self.app_tx.try_send(ApprovalResult::Always);
                                 }
                                 KeyCode::Esc => {
-                                    let _ = self.rx_tx.send(TuiEvent::Abort).await;
+                                    self.handle_abort(&mut app, &mut stdout)?;
                                 }
                                 _ => {}
                             }
+                            render_footer(&mut stdout, &app)?;
                             continue;
                         }
                         match key.code {
@@ -421,7 +429,7 @@ impl EventLoop {
                                 app.prev_history();
                             }
                             KeyCode::Esc if !app.queued_commands.is_empty() => {
-                                let _ = self.rx_tx.send(TuiEvent::Abort).await;
+                                self.handle_abort(&mut app, &mut stdout)?;
                             }
                             _ => {}
                         }
@@ -556,9 +564,31 @@ impl EventLoop {
                             app.reasoning_started = false;
                             app.content_started = false;
                             let separator = "────────────────────────────────────────────────────────────────────────────────".dim().to_string();
-                            let header = format!("⚠️ Approval Required for tool: {}\n", name)
-                                .yellow()
-                                .to_string();
+
+                            let (display_name, is_traversal) = if let Some(stripped) =
+                                name.strip_prefix("path_traversal_warning:")
+                            {
+                                (stripped.to_string(), true)
+                            } else {
+                                (name.clone(), false)
+                            };
+
+                            app.is_path_traversal_warning = is_traversal;
+
+                            let header = if is_traversal {
+                                format!(
+                                    "⚠️ WARNING: Path traversal detected for tool: {}\n",
+                                    display_name
+                                )
+                                .red()
+                                .bold()
+                                .to_string()
+                            } else {
+                                format!("⚠️ Approval Required for tool: {}\n", display_name)
+                                    .yellow()
+                                    .to_string()
+                            };
+
                             write_to_output(
                                 &mut stdout,
                                 &mut app,
@@ -569,13 +599,18 @@ impl EventLoop {
                                 &mut app,
                                 format!("Arguments: {}\n", args).dim().to_string(),
                             )?;
-                            write_to_output(
-                                &mut stdout,
-                                &mut app,
+
+                            let prompt_str = if is_traversal {
+                                "? Press 'y' to approve this path traversal, 'n' to reject. (Always Approve is disabled for security)\n"
+                                    .red()
+                                    .to_string()
+                            } else {
                                 "? Press 'y' to approve, 'n' to reject, 'a' to allow all.\n"
                                     .red()
-                                    .to_string(),
-                            )?;
+                                    .to_string()
+                            };
+
+                            write_to_output(&mut stdout, &mut app, prompt_str)?;
                         }
                         AgentEvent::Error { content } => {
                             // Flush any pending colorizer output
@@ -718,7 +753,11 @@ fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
     };
 
     let status = if app.awaiting_approval {
-        " ⚠️ AWAITING APPROVAL (y/n/a) ".red().to_string()
+        if app.is_path_traversal_warning {
+            " ⚠️ AWAITING APPROVAL (y/n) ".red().to_string()
+        } else {
+            " ⚠️ AWAITING APPROVAL (y/n/a) ".red().to_string()
+        }
     } else if let Some(task) = &app.current_task {
         let elapsed = app
             .job_start_time

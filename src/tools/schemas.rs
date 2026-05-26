@@ -161,6 +161,53 @@ pub fn get_filtered_tools_schemas(is_git_repo: bool, has_github_token: bool) -> 
         vec!["name"],
     ));
 
+    // ─── New Advanced Tools ─────────────────────────────────
+    tools.push(create_tool(
+        "regex_replace_in_file",
+        "Replace text in a file using a regular expression.",
+        json!({
+            "file_path": { "type": "string" },
+            "regex": { "type": "string" },
+            "replacement": { "type": "string" }
+        }),
+        vec!["file_path", "regex", "replacement"],
+    ));
+    tools.push(create_tool(
+        "json_update_value",
+        "Read a JSON file, update a value at a specified key path (e.g. 'dependencies.tokio.version'), and save it.",
+        json!({
+            "file_path": { "type": "string" },
+            "key_path": { "type": "string" },
+            "new_value": { "type": "string" }
+        }),
+        vec!["file_path", "key_path", "new_value"],
+    ));
+    tools.push(create_tool(
+        "list_symbols",
+        "Parse code symbols (functions, structs, classes, etc.) from a file using lightweight regex.",
+        json!({
+            "file_path": { "type": "string" }
+        }),
+        vec!["file_path"],
+    ));
+    tools.push(create_tool(
+        "screenshot_webapp",
+        "Take a screenshot of a local web app or website using Microsoft Edge or Google Chrome in headless mode.",
+        json!({
+            "url": { "type": "string" },
+            "output_path": { "type": "string" }
+        }),
+        vec!["url", "output_path"],
+    ));
+    tools.push(create_tool(
+        "web_search_duckduckgo",
+        "Perform an internet search query via DuckDuckGo and return top results.",
+        json!({
+            "query": { "type": "string" }
+        }),
+        vec!["query"],
+    ));
+
     // ─── Local Git Operations (only if in a git repo) ──────
     if is_git_repo {
         tools.push(create_tool(
