@@ -56,6 +56,34 @@ impl ToolRegistry {
 pub static ALLOW_PATH_TRAVERSAL: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
+pub static STARTUP_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+pub fn init_startup_dir() {
+    if let Ok(dir) = std::env::current_dir() {
+        if let Ok(canonical) = std::fs::canonicalize(&dir) {
+            let _ = STARTUP_DIR.set(canonical);
+        } else {
+            let _ = STARTUP_DIR.set(dir);
+        }
+    }
+}
+
+pub fn strip_unc_prefix(path: &std::path::Path) -> std::path::PathBuf {
+    #[cfg(windows)]
+    {
+        let path_str = path.to_string_lossy();
+        if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
+            std::path::PathBuf::from(stripped)
+        } else {
+            path.to_path_buf()
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        path.to_path_buf()
+    }
+}
+
 pub struct PathTraversalGuard {
     active: bool,
 }
@@ -116,15 +144,21 @@ pub fn validate_path(path: &str) -> Result<std::path::PathBuf> {
         }
     };
 
-    let cwd = std::fs::canonicalize(std::env::current_dir()?)?;
-    if !canonical.starts_with(&cwd)
+    let root = STARTUP_DIR.get().cloned().unwrap_or_else(|| {
+        std::fs::canonicalize(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        )
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+    });
+
+    if !canonical.starts_with(&root)
         && !path.is_empty()
         && !ALLOW_PATH_TRAVERSAL.load(std::sync::atomic::Ordering::SeqCst)
     {
         anyhow::bail!("Path traversal detected: access to '{}' is denied", path);
     }
 
-    Ok(canonical)
+    Ok(strip_unc_prefix(&canonical))
 }
 
 #[cfg(test)]

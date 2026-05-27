@@ -210,6 +210,9 @@ impl EventLoop {
                 }
                 TuiEvent::Tick => {
                     app.tick();
+                    if let Ok(p) = std::env::current_dir() {
+                        app.cwd = p.display().to_string();
+                    }
                     let (w, h) = terminal::size().unwrap_or((80, 24));
                     if (w, h) != last_size {
                         last_size = (w, h);

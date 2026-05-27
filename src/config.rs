@@ -31,6 +31,12 @@ pub struct Config {
     pub max_tool_output_chars: usize,
     #[serde(default = "default_max_context_chars")]
     pub max_context_chars: usize,
+    #[serde(default = "default_thinking_enabled")]
+    pub thinking_enabled: bool,
+    #[serde(default = "default_reasoning_effort")]
+    pub reasoning_effort: Option<String>,
+    #[serde(default)]
+    pub json_mode: bool,
 }
 
 impl Default for Config {
@@ -69,6 +75,9 @@ impl Default for Config {
             system_prompt: prompt,
             max_tool_output_chars: 15000,
             max_context_chars: 100000,
+            thinking_enabled: true,
+            reasoning_effort: Some("high".to_string()),
+            json_mode: false,
         }
     }
 }
@@ -79,6 +88,14 @@ fn default_max_tool_output_chars() -> usize {
 
 fn default_max_context_chars() -> usize {
     100000
+}
+
+fn default_thinking_enabled() -> bool {
+    true
+}
+
+fn default_reasoning_effort() -> Option<String> {
+    Some("high".to_string())
 }
 const DEFAULT_SYSTEM_PROMPT: &str =
     "You are a terminal-based AI coding assistant running on {os} via {shell}.

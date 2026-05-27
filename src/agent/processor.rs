@@ -85,6 +85,9 @@ impl DeepSeekAgent {
                 presence_penalty: self.config.presence_penalty,
                 frequency_penalty: self.config.frequency_penalty,
                 max_tokens: Some(self.config.max_tokens),
+                thinking_enabled: self.config.thinking_enabled,
+                reasoning_effort: self.config.reasoning_effort.clone(),
+                json_mode: self.config.json_mode,
             };
 
             let cancel_token = self
@@ -366,7 +369,8 @@ impl DeepSeekAgent {
                                     target_path.to_str().unwrap_or("."),
                                 ) {
                                     if validated.exists() && validated.is_dir() {
-                                        self.cwd = validated;
+                                        self.cwd = validated.clone();
+                                        let _ = std::env::set_current_dir(&self.cwd);
                                     }
                                 }
                             }

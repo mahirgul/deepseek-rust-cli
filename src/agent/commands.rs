@@ -22,6 +22,38 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
                 Ok(Some(format!("Current model: {}", agent.model)))
             }
         }
+        "/thinking" => {
+            if parts.len() > 1 {
+                match parts[1].to_lowercase().as_str() {
+                    "on" | "enable" | "enabled" | "true" | "1" => {
+                        agent.config.thinking_enabled = true;
+                        let _ = agent.config.save();
+                        return Ok(Some("Thinking mode enabled.".to_string()));
+                    }
+                    "off" | "disable" | "disabled" | "false" | "0" => {
+                        agent.config.thinking_enabled = false;
+                        let _ = agent.config.save();
+                        return Ok(Some("Thinking mode disabled.".to_string()));
+                    }
+                    "high" | "max" => {
+                        agent.config.reasoning_effort = Some(parts[1].to_string());
+                        let _ = agent.config.save();
+                        return Ok(Some(format!("Reasoning effort set to {}", parts[1])));
+                    }
+                    _ => return Ok(Some("Usage /thinking [on|off|high|max]".to_string())),
+                }
+            }
+            let status = if agent.config.thinking_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            };
+            let effort = agent.config.reasoning_effort.as_deref().unwrap_or("high");
+            Ok(Some(format!(
+                "Thinking mode: {}, effort: {}",
+                status, effort
+            )))
+        }
         "/clear" => {
             agent.messages.truncate(1);
             agent.save();
@@ -289,7 +321,8 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
         "/help" => {
             let help = r#"
 Available Commands:
-  /model [name]    - Show or switch current model
+  /model [name]    - Show or switch current model (v4-flash, v4-pro)
+  /thinking [on|off|high|max] - Toggle thinking mode or set reasoning effort
   /clear           - Clear current conversation history
   /forget          - Delete session history from disk
   /undo            - Undo last file/shell operation
@@ -322,6 +355,7 @@ Available Commands:
 
 const COMMANDS: &[&str] = &[
     "/model",
+    "/thinking",
     "/clear",
     "/forget",
     "/undo",

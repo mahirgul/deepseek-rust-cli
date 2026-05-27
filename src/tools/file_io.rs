@@ -38,6 +38,9 @@ pub async fn read_local_file(
 
 pub async fn write_local_file(path: &str, content: &str) -> Result<()> {
     let p = validate_path(path)?;
+    if let Some(parent) = p.parent() {
+        fs::create_dir_all(parent).await?;
+    }
     fs::write(p, content).await?;
     Ok(())
 }
@@ -83,7 +86,12 @@ pub async fn fuzzy_replace_in_file(path: &str, old_text: &str, new_text: &str) -
         if window_normalized == normalized_old {
             let mut new_lines = lines.iter().map(|s| s.to_string()).collect::<Vec<_>>();
             new_lines.splice(i..i + old_lines.len(), vec![new_text.to_string()]);
-            fs::write(p, new_lines.join("\n")).await?;
+            let line_ending = if content.contains("\r\n") {
+                "\r\n"
+            } else {
+                "\n"
+            };
+            fs::write(p, new_lines.join(line_ending)).await?;
             return Ok("Text replaced successfully (fuzzy match).".to_string());
         }
     }
@@ -164,7 +172,12 @@ pub async fn cleanup_file(path: &str) -> Result<String> {
         }
     }
 
-    let cleaned_content = cleaned_lines.join("\n");
+    let line_ending = if content.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let cleaned_content = cleaned_lines.join(line_ending);
     fs::write(p, &cleaned_content).await?;
     Ok("File cleaned up (trailing spaces removed, line endings normalized).".to_string())
 }
@@ -542,9 +555,18 @@ pub async fn edit_file_by_lines(path: &str, edits: Vec<LineEdit>) -> Result<Stri
     }
 
     // Maintain ending newline if present originally
-    let mut new_content = lines.join("\n");
+    let line_ending = if content.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let mut new_content = lines.join(line_ending);
     if content.ends_with('\n') && !new_content.ends_with('\n') {
-        new_content.push('\n');
+        if line_ending == "\r\n" {
+            new_content.push_str("\r\n");
+        } else {
+            new_content.push('\n');
+        }
     }
 
     fs::write(&p, new_content).await?;
@@ -650,9 +672,18 @@ pub async fn apply_diff_patch(path: &str, patch_content: &str) -> Result<String>
         lines.splice(start_idx..actual_end_idx, hunk.new_lines);
     }
 
-    let mut new_content = lines.join("\n");
+    let line_ending = if content.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let mut new_content = lines.join(line_ending);
     if content.ends_with('\n') && !new_content.ends_with('\n') {
-        new_content.push('\n');
+        if line_ending == "\r\n" {
+            new_content.push_str("\r\n");
+        } else {
+            new_content.push('\n');
+        }
     }
 
     fs::write(&p, new_content).await?;

@@ -25,6 +25,7 @@ use tokio::sync::{mpsc, Mutex};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    deepseek_rust_cli::tools::base::init_startup_dir();
     let args = Args::parse();
 
     // Handle --generate-completion early (no TUI needed)

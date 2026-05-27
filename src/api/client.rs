@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Result;
 use reqwest::{Client, Response};
 
-use crate::api::types::{ChatRequest, Message, Tool};
+use crate::api::types::{ChatRequest, Message, ResponseFormat, ThinkingConfig, Tool};
 
 /// High-performance HTTP client with connection pooling, HTTP/2, and retry logic.
 pub struct DeepSeekClient {
@@ -89,6 +89,14 @@ impl DeepSeekClient {
         tracing::info!("API request to: {}", url);
         tracing::info!("Model: {}, Messages count: {}", model, messages.len());
 
+        let thinking_cfg = ThinkingConfig {
+            r#type: if options.thinking_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+            .to_string(),
+        };
         let request = ChatRequest {
             model: model.to_string(),
             messages,
@@ -100,6 +108,16 @@ impl DeepSeekClient {
             presence_penalty: options.presence_penalty,
             frequency_penalty: options.frequency_penalty,
             max_tokens: options.max_tokens,
+            thinking: Some(thinking_cfg),
+            reasoning_effort: options.reasoning_effort.clone(),
+            response_format: if options.json_mode {
+                Some(ResponseFormat {
+                    r#type: "json_object".to_string(),
+                })
+            } else {
+                None
+            },
+            stop: None,
         };
 
         let mut last_err = None;

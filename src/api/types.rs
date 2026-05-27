@@ -28,6 +28,16 @@ pub struct FunctionCall {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ThinkingConfig {
+    pub r#type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ResponseFormat {
+    pub r#type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatRequest {
     pub model: String,
     pub messages: Vec<Message>,
@@ -42,6 +52,14 @@ pub struct ChatRequest {
     pub frequency_penalty: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<ThinkingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<ResponseFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -90,17 +108,39 @@ pub struct DeltaFunctionCall {
     pub arguments: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ChatOptions {
     pub temperature: f32,
     pub top_p: f32,
     pub presence_penalty: f32,
     pub frequency_penalty: f32,
     pub max_tokens: Option<u32>,
+    pub thinking_enabled: bool,
+    pub reasoning_effort: Option<String>,
+    pub json_mode: bool,
+}
+
+impl Default for ChatOptions {
+    fn default() -> Self {
+        Self {
+            temperature: 0.0,
+            top_p: 1.0,
+            presence_penalty: 0.0,
+            frequency_penalty: 0.0,
+            max_tokens: Some(16_384),
+            thinking_enabled: true,
+            reasoning_effort: Some("high".to_string()),
+            json_mode: false,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct TokenUsage {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
+    #[serde(default)]
+    pub prompt_cache_hit_tokens: u64,
+    #[serde(default)]
+    pub prompt_cache_miss_tokens: u64,
 }

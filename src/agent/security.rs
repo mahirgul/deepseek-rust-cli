@@ -177,10 +177,17 @@ fn is_traversal_path(path_str: &str) -> bool {
     };
     let normalized = normalize_path(&abs);
     let canonical = canonicalize_any(&normalized);
-    if let Ok(cwd) = std::env::current_dir().and_then(std::fs::canonicalize) {
-        if !canonical.starts_with(&cwd) && !path_str.is_empty() {
-            return true;
-        }
+
+    let root = crate::tools::base::STARTUP_DIR
+        .get()
+        .cloned()
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .and_then(std::fs::canonicalize)
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        });
+    if !canonical.starts_with(&root) && !path_str.is_empty() {
+        return true;
     }
     false
 }
