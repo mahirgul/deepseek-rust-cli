@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
 use crossterm::{
-    cursor, execute,
+    cursor,
     style::{self, Stylize},
     terminal, QueueableCommand,
 };
@@ -198,10 +198,16 @@ pub fn write_to_output(stdout: &mut io::Stdout, app: &mut App, text: String) -> 
 
     let chars: Vec<char> = text.chars().collect();
     let mut i = 0;
+    let mut buffer = String::new();
 
     while i < chars.len() {
         if chars[i] == '\x1b' && i + 1 < chars.len() && chars[i + 1] == '[' {
-            // It's an ANSI escape sequence! Print it directly and skip.
+            // Flush text buffer before printing escape sequence
+            if !buffer.is_empty() {
+                stdout.queue(style::Print(&buffer))?;
+                buffer.clear();
+            }
+
             let mut seq = String::new();
             seq.push('\x1b');
             seq.push('[');
@@ -210,37 +216,53 @@ pub fn write_to_output(stdout: &mut io::Stdout, app: &mut App, text: String) -> 
                 let c = chars[i];
                 seq.push(c);
                 i += 1;
-                // ANSI escape sequences end with a letter in the range @ to ~ (ASCII 64-126)
                 if (c as u32) >= 64 && (c as u32) <= 126 {
                     break;
                 }
             }
-            execute!(stdout, style::Print(seq))?;
+            stdout.queue(style::Print(seq))?;
         } else if chars[i] == '\n' {
-            // Newline: print CR LF to move to start of next line
-            execute!(stdout, style::Print("\r\n"))?;
+            // Flush text buffer before newline
+            if !buffer.is_empty() {
+                stdout.queue(style::Print(&buffer))?;
+                buffer.clear();
+            }
+
+            stdout.queue(style::Print("\r\n"))?;
             app.log_x = 0;
             if app.log_y < log_height.saturating_sub(1) {
                 app.log_y += 1;
             }
             i += 1;
         } else if chars[i] == '\r' {
-            // Carriage return: reset log_x
+            // Flush text buffer before carriage return
+            if !buffer.is_empty() {
+                stdout.queue(style::Print(&buffer))?;
+                buffer.clear();
+            }
             app.log_x = 0;
             i += 1;
         } else {
-            // Normal character
             if app.log_x >= max_cols {
-                execute!(stdout, style::Print("\r\n"))?;
+                // Flush text buffer before wrapping
+                if !buffer.is_empty() {
+                    stdout.queue(style::Print(&buffer))?;
+                    buffer.clear();
+                }
+                stdout.queue(style::Print("\r\n"))?;
                 app.log_x = 0;
                 if app.log_y < log_height.saturating_sub(1) {
                     app.log_y += 1;
                 }
             }
-            execute!(stdout, style::Print(chars[i]))?;
+            buffer.push(chars[i]);
             app.log_x += 1;
             i += 1;
         }
+    }
+
+    if !buffer.is_empty() {
+        stdout.queue(style::Print(buffer))?;
     }
 
     stdout.flush()?;

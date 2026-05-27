@@ -1,11 +1,35 @@
 use crate::api::types::ChatResponseChunk;
 
-pub struct StreamParser;
+pub struct StreamParser {
+    buffer: String,
+}
+
+impl Default for StreamParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl StreamParser {
-    pub fn parse_chunk(chunk: &str) -> Vec<ChatResponseChunk> {
+    pub fn new() -> Self {
+        Self {
+            buffer: String::new(),
+        }
+    }
+
+    pub fn parse_chunk(&mut self, chunk: &str) -> Vec<ChatResponseChunk> {
+        self.buffer.push_str(chunk);
         let mut results = Vec::new();
-        for line in chunk.lines() {
+
+        while let Some(newline_pos) = self.buffer.find('\n') {
+            let line = self.buffer[..newline_pos].to_string();
+            self.buffer.drain(..=newline_pos);
+
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
             if let Some(stripped) = line.strip_prefix("data: ") {
                 let data = stripped.trim();
                 if data == "[DONE]" {

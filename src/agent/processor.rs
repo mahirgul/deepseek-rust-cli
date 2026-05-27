@@ -126,6 +126,7 @@ impl DeepSeekAgent {
             let mut tool_calls: Vec<ToolCall> = Vec::new();
 
             let mut stream = response.bytes_stream();
+            let mut parser = StreamParser::new();
             let mut stream_error = None;
 
             loop {
@@ -148,7 +149,7 @@ impl DeepSeekAgent {
                 match item {
                     Ok(bytes) => {
                         let chunk_str = String::from_utf8_lossy(&bytes);
-                        let chunks = StreamParser::parse_chunk(&chunk_str);
+                        let chunks = parser.parse_chunk(&chunk_str);
 
                         for chunk in chunks {
                             if let Some(usage) = chunk.usage {
