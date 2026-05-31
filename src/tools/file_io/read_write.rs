@@ -340,10 +340,11 @@ pub async fn apply_diff_patch(path: &str, patch_content: &str) -> Result<String>
     hunks.sort_by_key(|b| std::cmp::Reverse(b.old_start));
 
     for hunk in hunks {
-        if hunk.old_start == 0 {
-            anyhow::bail!("Hunk start line cannot be 0");
-        }
-        let start_idx = hunk.old_start - 1;
+        let start_idx = if hunk.old_start == 0 {
+            0
+        } else {
+            hunk.old_start - 1
+        };
         let end_idx = start_idx + hunk.old_count;
 
         if start_idx > lines.len() {

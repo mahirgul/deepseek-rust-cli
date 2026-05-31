@@ -34,22 +34,7 @@ impl DeepSeekAgent {
                 }
                 "assistant" => {}
                 "tool" => {
-                    let mut j = idx + 1;
-                    while j < self.messages.len() && self.messages[j].role == "tool" {
-                        j += 1;
-                    }
-                    let start = idx - 1;
-                    remove_count = j - start;
-                    let mut chars_removed = 0;
-                    for _ in 0..remove_count {
-                        if start < self.messages.len() {
-                            let removed = self.messages.remove(start);
-                            chars_removed += removed.content.as_deref().unwrap_or("").len()
-                                + removed.reasoning_content.as_deref().unwrap_or("").len();
-                        }
-                    }
-                    current_chars -= chars_removed;
-                    continue;
+                    remove_count = 1;
                 }
                 _ => {}
             }

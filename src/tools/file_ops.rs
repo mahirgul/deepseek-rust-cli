@@ -11,10 +11,10 @@ use crate::tools::base::validate_path;
 pub async fn tree_view(path: Option<String>, max_depth: Option<usize>) -> Result<String> {
     task::spawn_blocking(move || {
         let dir = path.unwrap_or_else(|| ".".to_string());
-        let _ = validate_path(&dir)?;
+        let p = validate_path(&dir)?;
         let depth = max_depth.unwrap_or(3);
         let mut output = String::new();
-        for entry in WalkDir::new(dir).max_depth(depth).into_iter().flatten() {
+        for entry in WalkDir::new(p).max_depth(depth).into_iter().flatten() {
             let indent = "  ".repeat(entry.depth());
             output.push_str(&format!(
                 "{}{}\n",

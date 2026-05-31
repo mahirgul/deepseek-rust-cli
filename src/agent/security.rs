@@ -9,7 +9,7 @@ pub fn is_dangerous_tool(name: &str, args: &serde_json::Map<String, Value>) -> b
     if name == "delete_file" {
         return true;
     }
-    if name == "execute_shell_command" {
+    if name == "execute_shell_command" || name == "start_background_process" {
         let cmd = args
             .get("command")
             .and_then(|v| v.as_str())
@@ -45,6 +45,7 @@ pub fn is_dangerous_tool(name: &str, args: &serde_json::Map<String, Value>) -> b
 pub fn get_approval_required_tools() -> HashSet<String> {
     [
         "execute_shell_command",
+        "start_background_process",
         "write_local_file",
         "replace_text_in_file",
         "delete_file",

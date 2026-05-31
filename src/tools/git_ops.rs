@@ -1,13 +1,15 @@
 use anyhow::Result;
 use tokio::process::Command;
 
+use crate::tools::base::validate_path;
+
 // ─── Local Git Operations ───────────────────────────────────────────
 
 pub async fn git_status(path: Option<&str>) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let output = Command::new("git")
         .arg("-C")
-        .arg(p)
+        .arg(&p)
         .arg("status")
         .arg("-s")
         .output()
@@ -29,9 +31,9 @@ pub async fn git_status(path: Option<&str>) -> Result<String> {
 }
 
 pub async fn git_diff(path: Option<&str>, staged: bool) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(p).arg("diff");
+    cmd.arg("-C").arg(&p).arg("diff");
     if staged {
         cmd.arg("--staged");
     }
@@ -53,11 +55,11 @@ pub async fn git_diff(path: Option<&str>, staged: bool) -> Result<String> {
 }
 
 pub async fn git_log(path: Option<&str>, count: Option<usize>) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let n = count.unwrap_or(10);
     let output = Command::new("git")
         .arg("-C")
-        .arg(p)
+        .arg(&p)
         .arg("log")
         .arg(format!("-n{}", n))
         .arg("--oneline")
@@ -79,9 +81,9 @@ pub async fn git_branch(
     action: Option<&str>,
     name: Option<&str>,
 ) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(p);
+    cmd.arg("-C").arg(&p);
 
     match action {
         Some("create") => {
@@ -141,11 +143,11 @@ pub async fn git_branch(
 }
 
 pub async fn git_add(path: Option<&str>, files: Option<&str>) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let targets = files.unwrap_or(".");
     let output = Command::new("git")
         .arg("-C")
-        .arg(p)
+        .arg(&p)
         .arg("add")
         .arg(targets)
         .output()
@@ -161,10 +163,10 @@ pub async fn git_add(path: Option<&str>, files: Option<&str>) -> Result<String> 
 }
 
 pub async fn git_commit(path: Option<&str>, message: &str) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let output = Command::new("git")
         .arg("-C")
-        .arg(p)
+        .arg(&p)
         .arg("commit")
         .arg("-m")
         .arg(message)
@@ -190,10 +192,10 @@ pub async fn git_push(
     remote: Option<&str>,
     branch: Option<&str>,
 ) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let r = remote.unwrap_or("origin");
     let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(p).arg("push").arg(r);
+    cmd.arg("-C").arg(&p).arg("push").arg(r);
     if let Some(b) = branch {
         cmd.arg(b);
     }
@@ -215,10 +217,10 @@ pub async fn git_pull(
     remote: Option<&str>,
     branch: Option<&str>,
 ) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let r = remote.unwrap_or("origin");
     let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(p).arg("pull").arg(r);
+    cmd.arg("-C").arg(&p).arg("pull").arg(r);
     if let Some(b) = branch {
         cmd.arg(b);
     }
@@ -236,10 +238,10 @@ pub async fn git_pull(
 }
 
 pub async fn git_checkout(path: Option<&str>, target: &str) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let output = Command::new("git")
         .arg("-C")
-        .arg(p)
+        .arg(&p)
         .arg("checkout")
         .arg(target)
         .output()
@@ -258,7 +260,8 @@ pub async fn git_clone(url: &str, dest: Option<&str>) -> Result<String> {
     let mut cmd = Command::new("git");
     cmd.arg("clone").arg(url);
     if let Some(d) = dest {
-        cmd.arg(d);
+        let validated_d = validate_path(d)?;
+        cmd.arg(validated_d);
     }
 
     let output = cmd.output().await?;
@@ -274,10 +277,10 @@ pub async fn git_clone(url: &str, dest: Option<&str>) -> Result<String> {
 }
 
 pub async fn git_remote_list(path: Option<&str>) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let output = Command::new("git")
         .arg("-C")
-        .arg(p)
+        .arg(&p)
         .arg("remote")
         .arg("-v")
         .output()
@@ -293,9 +296,9 @@ pub async fn git_remote_list(path: Option<&str>) -> Result<String> {
 }
 
 pub async fn git_stash(path: Option<&str>, action: Option<&str>) -> Result<String> {
-    let p = path.unwrap_or(".");
+    let p = validate_path(path.unwrap_or("."))?;
     let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(p).arg("stash");
+    cmd.arg("-C").arg(&p).arg("stash");
 
     match action {
         Some("pop") => {

@@ -28,7 +28,8 @@ pub async fn search_files(
     glob_pattern: Option<&str>,
     max_results: usize,
 ) -> Result<String> {
-    let search_path = path.unwrap_or(".");
+    let search_path_str = path.unwrap_or(".");
+    let validated_path = validate_path(search_path_str)?;
     let max = max_results.clamp(1, 500);
 
     // Compile pattern: prefer case-insensitive literal, fall back to raw regex
@@ -40,7 +41,7 @@ pub async fn search_files(
 
     // Collect files matching glob
     let mut results: Vec<String> = Vec::new();
-    let walker = WalkDir::new(search_path)
+    let walker = WalkDir::new(&validated_path)
         .follow_links(false)
         .into_iter()
         .filter_entry(|e| {

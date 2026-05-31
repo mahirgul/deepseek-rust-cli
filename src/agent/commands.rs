@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use anyhow::Result;
 
@@ -61,7 +61,7 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
         }
         "/forget" => {
             agent.messages.truncate(1);
-            let path = PathBuf::from(".deep/history").join(format!("{}.json", agent.session_id));
+            let path = crate::agent::history::get_history_path(&agent.session_id);
             let _ = fs::remove_file(path);
             Ok(Some(
                 "Session history forgotten and deleted from disk.".to_string(),
@@ -186,7 +186,13 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
                     msg.content.as_deref().unwrap_or("(No content)")
                 ));
             }
-            let filename = format!("export_{}.md", agent.session_id);
+            // Sanitize session_id to prevent directory traversal in filename
+            let safe_sid: String = agent
+                .session_id
+                .chars()
+                .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+                .collect();
+            let filename = format!("export_{}.md", safe_sid);
             fs::write(&filename, export)?;
             Ok(Some(format!("Session exported to {}", filename)))
         }

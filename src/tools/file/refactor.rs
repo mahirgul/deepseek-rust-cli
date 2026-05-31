@@ -31,22 +31,26 @@ impl Tool for MoveCodeBlockTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'block_pattern'"))?;
 
+        let src_p = crate::tools::base::validate_path(src)?;
+        let dst_p = crate::tools::base::validate_path(dst)?;
+
         // Backup both files
-        let src_backup = tokio::fs::read(src).await.ok();
-        let dst_backup = tokio::fs::read(dst).await.ok();
+        let src_backup = tokio::fs::read(&src_p).await.ok();
+        let dst_backup = tokio::fs::read(&dst_p).await.ok();
 
         undo.push(UndoAction {
             r#type: "replace".to_string(),
-            path: src.to_string(),
+            path: src_p.to_string_lossy().to_string(),
             backup: src_backup,
         });
         undo.push(UndoAction {
             r#type: "replace".to_string(),
-            path: dst.to_string(),
+            path: dst_p.to_string_lossy().to_string(),
             backup: dst_backup,
         });
 
-        tools::file_ops::move_code_block(src, dst, pattern).await
+        tools::file_ops::move_code_block(src_p.to_str().unwrap(), dst_p.to_str().unwrap(), pattern)
+            .await
     }
 }
 

@@ -95,8 +95,12 @@ pub fn save_history(session_id: &str, messages: &[Message]) {
     }
 }
 
-fn get_history_path(session_id: &str) -> PathBuf {
+pub fn get_history_path(session_id: &str) -> PathBuf {
+    let safe_id: String = session_id
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
     let mut path = PathBuf::from(".deep/history");
-    path.push(format!("{}.json", session_id));
+    path.push(format!("{}.json", safe_id));
     path
 }
