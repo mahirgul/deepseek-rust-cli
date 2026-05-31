@@ -148,8 +148,7 @@ impl DeepSeekAgent {
 
                 match item {
                     Ok(bytes) => {
-                        let chunk_str = String::from_utf8_lossy(&bytes);
-                        let chunks = parser.parse_chunk(&chunk_str);
+                        let chunks = parser.parse_chunk(&bytes);
 
                         for chunk in chunks {
                             if let Some(usage) = chunk.usage {

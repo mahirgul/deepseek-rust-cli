@@ -81,13 +81,8 @@ impl DeepSeekAgent {
             match action.r#type.as_str() {
                 "write" | "replace" | "delete" => {
                     if let Some(backup) = action.backup {
-                        if backup.is_empty() && action.r#type == "write" {
-                            let _ = std::fs::remove_file(&action.path);
-                            format!("✅ Undone {}: Deleted {}", action.r#type, action.path)
-                        } else {
-                            let _ = std::fs::write(&action.path, backup);
-                            format!("✅ Undone {}: Restored {}", action.r#type, action.path)
-                        }
+                        let _ = std::fs::write(&action.path, backup);
+                        format!("✅ Undone {}: Restored {}", action.r#type, action.path)
                     } else if action.r#type == "write" || action.r#type == "replace" {
                         let _ = std::fs::remove_file(&action.path);
                         format!(

@@ -54,13 +54,14 @@ impl Tool for WriteFileTool {
             .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'content'"))?;
-        let backup = tokio::fs::read(path).await.ok();
+        let p = crate::tools::base::validate_path(path)?;
+        let backup = tokio::fs::read(&p).await.ok();
         undo.push(UndoAction {
             r#type: "write".to_string(),
-            path: path.to_string(),
+            path: p.to_string_lossy().to_string(),
             backup,
         });
-        tools::file_io::write_local_file(path, content)
+        tools::file_io::write_local_file(p.to_str().unwrap(), content)
             .await
             .map(|_| "File written.".to_string())
     }
@@ -90,13 +91,14 @@ impl Tool for ReplaceTextTool {
             .get("new_text")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'new_text'"))?;
-        let backup = tokio::fs::read(path).await.ok();
+        let p = crate::tools::base::validate_path(path)?;
+        let backup = tokio::fs::read(&p).await.ok();
         undo.push(UndoAction {
             r#type: "replace".to_string(),
-            path: path.to_string(),
+            path: p.to_string_lossy().to_string(),
             backup,
         });
-        tools::file_io::fuzzy_replace_in_file(path, old, new).await
+        tools::file_io::fuzzy_replace_in_file(p.to_str().unwrap(), old, new).await
     }
 }
 
@@ -251,14 +253,15 @@ impl Tool for EditFileByLinesTool {
 
         let edits: Vec<tools::file_io::LineEdit> = serde_json::from_value(edits_val.clone())?;
 
-        let backup = tokio::fs::read(path).await.ok();
+        let p = crate::tools::base::validate_path(path)?;
+        let backup = tokio::fs::read(&p).await.ok();
         undo.push(UndoAction {
             r#type: "replace".to_string(),
-            path: path.to_string(),
+            path: p.to_string_lossy().to_string(),
             backup,
         });
 
-        tools::file_io::edit_file_by_lines(path, edits).await
+        tools::file_io::edit_file_by_lines(p.to_str().unwrap(), edits).await
     }
 }
 
@@ -283,13 +286,14 @@ impl Tool for ApplyDiffPatchTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'patch_content'"))?;
 
-        let backup = tokio::fs::read(path).await.ok();
+        let p = crate::tools::base::validate_path(path)?;
+        let backup = tokio::fs::read(&p).await.ok();
         undo.push(UndoAction {
             r#type: "replace".to_string(),
-            path: path.to_string(),
+            path: p.to_string_lossy().to_string(),
             backup,
         });
 
-        tools::file_io::apply_diff_patch(path, patch_content).await
+        tools::file_io::apply_diff_patch(p.to_str().unwrap(), patch_content).await
     }
 }

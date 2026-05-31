@@ -96,14 +96,15 @@ impl Tool for CleanupFileTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'file_path'"))?;
 
-        let backup = tokio::fs::read(path).await.ok();
+        let p = crate::tools::base::validate_path(path)?;
+        let backup = tokio::fs::read(&p).await.ok();
         undo.push(UndoAction {
             r#type: "replace".to_string(),
-            path: path.to_string(),
+            path: p.to_string_lossy().to_string(),
             backup,
         });
 
-        tools::file_io::cleanup_file(path).await
+        tools::file_io::cleanup_file(p.to_str().unwrap()).await
     }
 }
 
@@ -124,9 +125,16 @@ impl Tool for ProjectCheckpointTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'name'"))?;
 
-        let checkpoint_dir = Path::new(".deep/checkpoints");
+        if !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
+            anyhow::bail!("Invalid checkpoint name: only alphanumeric, '_' and '-' are allowed");
+        }
+
+        let checkpoint_dir = crate::tools::base::validate_path(".deep/checkpoints")?;
         if !checkpoint_dir.exists() {
-            std::fs::create_dir_all(checkpoint_dir)?;
+            std::fs::create_dir_all(&checkpoint_dir)?;
         }
 
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
@@ -176,13 +184,16 @@ impl Tool for RestoreCheckpointTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'checkpoint_file'"))?;
 
-        let path = Path::new(".deep/checkpoints").join(name);
-        if !path.exists() {
-            return Err(anyhow::anyhow!("Checkpoint file not found: {}", name));
+        let checkpoint_dir = crate::tools::base::validate_path(".deep/checkpoints")?;
+        let path = checkpoint_dir.join(name);
+        let validated_path = crate::tools::base::validate_path(path.to_str().unwrap())?;
+
+        if !validated_path.starts_with(&checkpoint_dir) {
+            anyhow::bail!("Access to checkpoint file denied: path traversal detected");
         }
 
         let output = tokio::process::Command::new("tar")
-            .args(["-xzf", path.to_str().unwrap()])
+            .args(["-xzf", validated_path.to_str().unwrap()])
             .output()
             .await?;
 
@@ -229,14 +240,17 @@ impl Tool for ProjectWideReplaceTool {
         if let Ok(paths) = glob::glob(glob_pattern) {
             for entry in paths.filter_map(|e| e.ok()) {
                 if entry.is_file() {
-                    let path_str = entry.to_string_lossy();
-                    if !path_str.contains("target") && !path_str.contains(".git") {
-                        if let Ok(content) = std::fs::read_to_string(&entry) {
-                            if content.contains(old_text) {
-                                let new_content = content.replace(old_text, new_text);
-                                std::fs::write(&entry, new_content)?;
-                                file_count += 1;
-                                count += content.matches(old_text).count();
+                    let path_str = entry.to_string_lossy().to_string();
+                    if let Ok(validated_path) = crate::tools::base::validate_path(&path_str) {
+                        let path_str_val = validated_path.to_string_lossy();
+                        if !path_str_val.contains("target") && !path_str_val.contains(".git") {
+                            if let Ok(content) = std::fs::read_to_string(&validated_path) {
+                                if content.contains(old_text) {
+                                    let new_content = content.replace(old_text, new_text);
+                                    std::fs::write(&validated_path, new_content)?;
+                                    file_count += 1;
+                                    count += content.matches(old_text).count();
+                                }
                             }
                         }
                     }

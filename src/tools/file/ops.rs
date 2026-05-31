@@ -22,13 +22,14 @@ impl Tool for DeleteFileTool {
             .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'file_path'"))?;
-        let backup = tokio::fs::read(path).await.ok();
+        let p = crate::tools::base::validate_path(path)?;
+        let backup = tokio::fs::read(&p).await.ok();
         undo.push(UndoAction {
             r#type: "delete".to_string(),
-            path: path.to_string(),
+            path: p.to_string_lossy().to_string(),
             backup,
         });
-        tools::file_io::delete_file(path)
+        tools::file_io::delete_file(p.to_str().unwrap())
             .await
             .map(|_| "File deleted.".to_string())
     }
@@ -54,12 +55,14 @@ impl Tool for RenameFileTool {
             .get("destination_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'destination_path'"))?;
+        let src_p = crate::tools::base::validate_path(src)?;
+        let dst_p = crate::tools::base::validate_path(dst)?;
         undo.push(UndoAction {
             r#type: "rename".to_string(),
-            path: dst.to_string(),
-            backup: Some(src.as_bytes().to_vec()),
+            path: dst_p.to_string_lossy().to_string(),
+            backup: Some(src_p.to_string_lossy().as_bytes().to_vec()),
         });
-        tools::file_io::rename_file(src, dst)
+        tools::file_io::rename_file(src_p.to_str().unwrap(), dst_p.to_str().unwrap())
             .await
             .map(|_| "File moved.".to_string())
     }
@@ -292,15 +295,18 @@ impl Tool for CopyFileTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing 'destination_path'"))?;
 
+        let src_p = crate::tools::base::validate_path(src)?;
+        let dst_p = crate::tools::base::validate_path(dst)?;
+
         // Support undo
-        let backup = tokio::fs::read(dst).await.ok();
+        let backup = tokio::fs::read(&dst_p).await.ok();
         undo.push(UndoAction {
             r#type: "write".to_string(),
-            path: dst.to_string(),
+            path: dst_p.to_string_lossy().to_string(),
             backup,
         });
 
-        tools::file_io::copy_local_file(src, dst).await?;
+        tools::file_io::copy_local_file(src_p.to_str().unwrap(), dst_p.to_str().unwrap()).await?;
         Ok(format!("File copied from {} to {}.", src, dst))
     }
 }
