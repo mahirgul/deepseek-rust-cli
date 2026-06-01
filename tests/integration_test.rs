@@ -297,9 +297,18 @@ fn test_check_port_status() {
 
         drop(listener);
 
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
-        let free_res = check_port_status(port, Some("127.0.0.1")).await.unwrap();
-        assert!(free_res.contains("FREE"));
+        let mut free_res = String::new();
+        for _ in 0..20 {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            free_res = check_port_status(port, Some("127.0.0.1")).await.unwrap();
+            if free_res.contains("FREE") {
+                break;
+            }
+        }
+        assert!(
+            free_res.contains("FREE"),
+            "Expected port to become free, but got: {}",
+            free_res
+        );
     });
 }

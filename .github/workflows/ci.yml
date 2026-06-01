@@ -74,6 +74,10 @@ jobs:
         with:
           targets: ${{ matrix.platform.target }}
 
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Install mold (Linux)
         if: runner.os == 'Linux'
         uses: rui314/setup-mold@v1

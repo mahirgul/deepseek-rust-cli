@@ -51,6 +51,10 @@ jobs:
         with:
           targets: ${{ matrix.platform.target }}
 
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Install cross (for ARM64 Linux)
         if: matrix.platform.use-cross
         run: |
