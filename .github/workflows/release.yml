@@ -55,6 +55,11 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Remove conflicting link tool (Windows)
+        if: runner.os == 'Windows'
+        run: rm -f /usr/bin/link
+        shell: bash
+
       - name: Install cross (for ARM64 Linux)
         if: matrix.platform.use-cross
         run: |
