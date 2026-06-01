@@ -200,10 +200,20 @@ fn test_background_process_lifecycle() {
         let parts: Vec<&str> = res.split_whitespace().collect();
         let pid: u32 = parts[5].parse().unwrap();
 
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-
-        let logs = read_background_process_logs(pid).await.unwrap();
-        assert!(logs.contains("Hello background"));
+        // Retry reading logs as spawning a process on slow CI environments might take some time
+        let mut logs = String::new();
+        for _ in 0..50 {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            logs = read_background_process_logs(pid).await.unwrap();
+            if logs.contains("Hello background") {
+                break;
+            }
+        }
+        assert!(
+            logs.contains("Hello background"),
+            "Expected logs to contain 'Hello background', but got: {}",
+            logs
+        );
 
         let list = list_background_processes().await.unwrap();
         assert!(list.contains(&pid.to_string()));
