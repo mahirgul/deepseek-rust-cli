@@ -57,7 +57,9 @@ jobs:
 
       - name: Remove conflicting link tool (Windows)
         if: runner.os == 'Windows'
-        run: rm -f /usr/bin/link
+        run: |
+          rm -f /usr/bin/link
+          rm -f /usr/bin/link.exe
         shell: bash
 
       - name: Install cross (for ARM64 Linux)
