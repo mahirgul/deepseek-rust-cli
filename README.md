@@ -1,6 +1,6 @@
 # DeepSeek Rust CLI Agent 🚀
 
-<img width="359" height="95" alt="image" src="https://github.com/user-attachments/assets/97b1f9b6-90a1-4d80-bc89-4efccdf195e7" />
+<img width="486" height="297" alt="image" src="https://github.com/user-attachments/assets/1b6383af-d7c1-49aa-b6f1-abeb05772aea" />
 
 
 An autonomous AI software engineer and CLI assistant powered by DeepSeek. This project was developed with the assistance of **Gemini CLI**.
