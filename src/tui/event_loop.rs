@@ -8,7 +8,7 @@ use crossterm::{
     cursor,
     event::{self, DisableBracketedPaste, EnableBracketedPaste},
     execute,
-    style::{self},
+    style::{self, Stylize},
     terminal::{self, disable_raw_mode, enable_raw_mode},
 };
 use tokio::sync::{mpsc, Mutex};
@@ -173,6 +173,51 @@ impl EventLoop {
             style::Print(format!("\x1b[1;{}r", log_height)),
             cursor::MoveTo(0, 0),
         )?;
+
+        // Print beautiful startup logo
+        let logo_lines = vec![
+            format!(
+                "  {}   {}   {}",
+                "██████╗ ".cyan().bold(),
+                "  ██████╗".magenta().bold(),
+                "DeepSeek CLI Agent".cyan().bold()
+            ),
+            format!(
+                "  {}   {}   {}",
+                "██╔══██╗".cyan().bold(),
+                " ██╔════╝".magenta().bold(),
+                "Autonomous Terminal System".dim()
+            ),
+            format!(
+                "  {}   {}   {}",
+                "██║  ██║".cyan().bold(),
+                " ██║     ".magenta().bold(),
+                format!("Version {}", crate::version::VERSION).dim()
+            ),
+            format!(
+                "  {}   {}   {}",
+                "██║  ██║".cyan().bold(),
+                " ██║     ".magenta().bold(),
+                "Status: Ready".dim()
+            ),
+            format!(
+                "  {}   {}   {}",
+                "██████╔╝".cyan().bold(),
+                " ╚██████╗".magenta().bold(),
+                "Type /help for command list".dim()
+            ),
+            format!(
+                "  {}   {}   {}",
+                "╚═════╝ ".cyan().bold(),
+                "  ╚═════╝".magenta().bold(),
+                ""
+            ),
+        ];
+
+        for line in logo_lines {
+            write_to_output(&mut stdout, &mut app, format!("{}\n", line))?;
+        }
+        write_to_output(&mut stdout, &mut app, "\n".to_string())?;
 
         let mut last_size = (term_width, term_height);
         let mut last_footer_height = app.footer_height; // always 4
