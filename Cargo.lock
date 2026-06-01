@@ -465,7 +465,7 @@ dependencies = [
 
 [[package]]
 name = "deepseek-rust-cli"
-version = "1.20.6"
+version = "1.20.7"
 dependencies = [
  "anyhow",
  "async-trait",
