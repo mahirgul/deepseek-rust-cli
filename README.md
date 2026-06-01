@@ -10,6 +10,9 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 [![Release](https://img.shields.io/github/v/release/mahirgul/deepseek-rust-cli)](https://github.com/mahirgul/deepseek-rust-cli/releases)
 [![License](https://img.shields.io/github/license/mahirgul/deepseek-rust-cli)](LICENSE)
 [![CI](https://github.com/mahirgul/deepseek-rust-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/mahirgul/deepseek-rust-cli/actions/workflows/ci.yml)
+[![Rust Version](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
+[![GitHub Stars](https://img.shields.io/github/stars/mahirgul/deepseek-rust-cli)](https://github.com/mahirgul/deepseek-rust-cli/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/mahirgul/deepseek-rust-cli)](https://github.com/mahirgul/deepseek-rust-cli/issues)
 
 ## ✨ Features
 

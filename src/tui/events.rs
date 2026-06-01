@@ -28,6 +28,14 @@ impl EventLoop {
             return Ok(false);
         }
 
+        let now = std::time::Instant::now();
+        let is_rapid = if let Some(last) = app.last_key_time {
+            now.duration_since(last) < std::time::Duration::from_millis(5)
+        } else {
+            false
+        };
+        app.last_key_time = Some(now);
+
         if app.awaiting_approval {
             if (key.code == KeyCode::Char('c') || key.code == KeyCode::Char('C'))
                 && key
@@ -64,31 +72,37 @@ impl EventLoop {
         }
 
         match key.code {
-            KeyCode::Enter if !app.input.is_empty() => {
-                let cmd = app.input.clone();
-                app.reasoning_started = false;
-                app.content_started = false;
-                let separator = format!("\n{}\n", "────────────────────────────────────────────────────────────────────────────────".dim());
-                let prompt = format!("> {}\n", cmd).cyan().to_string();
-                write_to_output(stdout, app, format!("{}{}", separator, prompt))?;
+            KeyCode::Enter => {
+                if is_rapid {
+                    let byte_pos = app.cursor_pos.min(app.input.len());
+                    app.input.insert(byte_pos, '\n');
+                    app.cursor_pos = byte_pos + 1;
+                } else if !app.input.is_empty() {
+                    let cmd = app.input.clone();
+                    app.reasoning_started = false;
+                    app.content_started = false;
+                    let separator = format!("\n{}\n", "────────────────────────────────────────────────────────────────────────────────".dim());
+                    let prompt = format!("> {}\n", cmd).cyan().to_string();
+                    write_to_output(stdout, app, format!("{}{}", separator, prompt))?;
 
-                if cmd == "exit" || cmd == "quit" || cmd == "/exit" || cmd == "/quit" {
-                    return Ok(true);
-                }
-                if app.history.last() != Some(&cmd) {
-                    app.history.push(cmd.clone());
-                    if app.history.len() > 1000 {
-                        app.history.remove(0);
+                    if cmd == "exit" || cmd == "quit" || cmd == "/exit" || cmd == "/quit" {
+                        return Ok(true);
                     }
-                    save_global_history(&app.history);
+                    if app.history.last() != Some(&cmd) {
+                        app.history.push(cmd.clone());
+                        if app.history.len() > 1000 {
+                            app.history.remove(0);
+                        }
+                        save_global_history(&app.history);
+                    }
+                    app.history_index = None;
+                    app.aborted = false;
+                    app.queued_commands.push(cmd.clone());
+                    let current_run_id = self.run_id.load(std::sync::atomic::Ordering::SeqCst);
+                    let _ = self.cmd_tx.try_send((current_run_id, cmd));
+                    app.input.clear();
+                    app.cursor_pos = 0;
                 }
-                app.history_index = None;
-                app.aborted = false;
-                app.queued_commands.push(cmd.clone());
-                let current_run_id = self.run_id.load(std::sync::atomic::Ordering::SeqCst);
-                let _ = self.cmd_tx.try_send((current_run_id, cmd));
-                app.input.clear();
-                app.cursor_pos = 0;
             }
             KeyCode::Char('c') | KeyCode::Char('C')
                 if key

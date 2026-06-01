@@ -18,7 +18,7 @@ use crate::{
     tui::{
         app::App,
         colorizer::StreamColorizer,
-        render::{render_footer, write_to_output},
+        render::{render_footer, write_to_output, write_to_output_inner},
     },
 };
 
@@ -27,6 +27,7 @@ pub enum TuiEvent {
     Mouse(event::MouseEvent),
     /// Bracketed paste content (multi-line preserved)
     Paste(String),
+    Resize(u16, u16),
     Tick,
     Agent(crate::agent::types::AgentEvent),
     Abort,
@@ -220,7 +221,6 @@ impl EventLoop {
         write_to_output(&mut stdout, &mut app, "\n".to_string())?;
 
         let mut last_size = (term_width, term_height);
-        let mut last_footer_height = app.footer_height; // always 4
         render_footer(&mut stdout, &app)?;
 
         while let Some(event) = self.rx.recv().await {
@@ -232,9 +232,10 @@ impl EventLoop {
                 }
                 TuiEvent::Paste(text) => {
                     if !text.is_empty() {
+                        let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
                         let byte_pos = app.cursor_pos.min(app.input.len());
-                        app.input.insert_str(byte_pos, &text);
-                        app.cursor_pos = byte_pos + text.len();
+                        app.input.insert_str(byte_pos, &normalized);
+                        app.cursor_pos = byte_pos + normalized.len();
                     }
                 }
                 TuiEvent::Mouse(_) => {}
@@ -253,6 +254,27 @@ impl EventLoop {
                         &mut content_colorizer,
                     )?;
                 }
+                TuiEvent::Resize(w, h) => {
+                    if (w, h) != last_size {
+                        if let Ok(mut size) = app.terminal_size.write() {
+                            size.width = w;
+                            size.height = h;
+                        }
+                        last_size = (w, h);
+
+                        execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
+                        let log_height = h.saturating_sub(app.footer_height);
+                        execute!(
+                            stdout,
+                            style::Print(format!("\x1b[1;{}r", log_height)),
+                            cursor::MoveTo(0, 0)
+                        )?;
+                        app.log_x = 0;
+                        app.log_y = 0;
+                        let history = app.output_buffer.clone();
+                        write_to_output_inner(&mut stdout, &mut app, &history, false)?;
+                    }
+                }
                 TuiEvent::Tick => {
                     app.tick();
                     if let Ok(p) = std::env::current_dir() {
@@ -260,20 +282,24 @@ impl EventLoop {
                     }
                     let (w, h) = terminal::size().unwrap_or((80, 24));
                     if (w, h) != last_size {
+                        if let Ok(mut size) = app.terminal_size.write() {
+                            size.width = w;
+                            size.height = h;
+                        }
                         last_size = (w, h);
-                        last_footer_height = 0;
+
+                        execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
+                        let log_height = h.saturating_sub(app.footer_height);
+                        execute!(
+                            stdout,
+                            style::Print(format!("\x1b[1;{}r", log_height)),
+                            cursor::MoveTo(0, 0)
+                        )?;
+                        app.log_x = 0;
+                        app.log_y = 0;
+                        let history = app.output_buffer.clone();
+                        write_to_output_inner(&mut stdout, &mut app, &history, false)?;
                     }
-                }
-            }
-            // Footer is always 4 lines; update scrolling region once if terminal resized
-            let new_fh = 4u16;
-            if new_fh != last_footer_height {
-                let (_w, h) = terminal::size().unwrap_or((80, 24));
-                let log_h = h.saturating_sub(new_fh);
-                execute!(stdout, style::Print(format!("\x1b[1;{}r", log_h)))?;
-                last_footer_height = new_fh;
-                if app.log_y >= log_h {
-                    app.log_y = log_h.saturating_sub(1);
                 }
             }
             render_footer(&mut stdout, &app)?;

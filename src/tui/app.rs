@@ -1,6 +1,13 @@
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::api::types::TokenUsage;
+
+#[derive(Debug, Clone, Copy)]
+pub struct TerminalSize {
+    pub width: u16,
+    pub height: u16,
+}
 
 pub fn load_global_history() -> Vec<String> {
     let path = std::path::PathBuf::from(".deep/input_history.json");
@@ -50,6 +57,9 @@ pub struct App {
     pub reasoning_started: bool,
     pub content_started: bool,
     pub is_path_traversal_warning: bool,
+    pub terminal_size: Arc<std::sync::RwLock<TerminalSize>>,
+    pub output_buffer: String,
+    pub last_key_time: Option<Instant>,
 }
 
 impl Default for App {
@@ -61,6 +71,7 @@ impl Default for App {
 impl App {
     pub fn new() -> Self {
         let history = load_global_history();
+        let (width, height) = crossterm::terminal::size().unwrap_or((80, 24));
         Self {
             input: String::new(),
             cursor_pos: 0,
@@ -84,6 +95,9 @@ impl App {
             reasoning_started: false,
             content_started: false,
             is_path_traversal_warning: false,
+            terminal_size: Arc::new(std::sync::RwLock::new(TerminalSize { width, height })),
+            output_buffer: String::new(),
+            last_key_time: None,
         }
     }
 

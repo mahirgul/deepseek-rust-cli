@@ -111,6 +111,9 @@ async fn main() -> Result<()> {
                     Ok(Event::Paste(text)) => {
                         let _ = tui_tx_for_input.send(TuiEvent::Paste(text)).await;
                     }
+                    Ok(Event::Resize(width, height)) => {
+                        let _ = tui_tx_for_input.send(TuiEvent::Resize(width, height)).await;
+                    }
                     Ok(_) => {}
                     Err(e) => {
                         tracing::warn!("Input event error: {}", e);

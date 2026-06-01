@@ -15,7 +15,10 @@ use crate::{
 };
 
 pub fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
-    let (term_width, term_height) = terminal::size().unwrap_or((80, 24));
+    let (term_width, term_height) = {
+        let size = app.terminal_size.read().unwrap();
+        (size.width, size.height)
+    };
     let fh = app.footer_height; // always 4
 
     stdout.queue(cursor::Hide)?;
@@ -189,7 +192,22 @@ pub fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
 }
 
 pub fn write_to_output(stdout: &mut io::Stdout, app: &mut App, text: String) -> io::Result<()> {
-    let (term_width, term_height) = terminal::size().unwrap_or((80, 24));
+    write_to_output_inner(stdout, app, &text, true)
+}
+
+pub fn write_to_output_inner(
+    stdout: &mut io::Stdout,
+    app: &mut App,
+    text: &str,
+    record: bool,
+) -> io::Result<()> {
+    if record {
+        app.output_buffer.push_str(text);
+    }
+    let (term_width, term_height) = {
+        let size = app.terminal_size.read().unwrap();
+        (size.width, size.height)
+    };
     let log_height = term_height.saturating_sub(app.footer_height);
     let max_cols = term_width;
 
