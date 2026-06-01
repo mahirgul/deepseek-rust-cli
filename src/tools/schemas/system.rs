@@ -1,6 +1,7 @@
+use serde_json::json;
+
 use super::create_tool;
 use crate::api::types::Tool;
-use serde_json::json;
 
 pub fn add_system_schemas(tools: &mut Vec<Tool>) {
     tools.push(create_tool(
