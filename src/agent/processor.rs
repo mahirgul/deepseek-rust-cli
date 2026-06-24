@@ -60,7 +60,7 @@ impl DeepSeekAgent {
         if !user_input.is_empty() {
             self.messages.push(Message {
                 role: "user".to_string(),
-                content: Some(user_input),
+                content: Some(user_input.clone()),
                 reasoning_content: None,
                 tool_calls: None,
                 tool_call_id: None,
@@ -245,6 +245,17 @@ impl DeepSeekAgent {
             self.messages.push(assistant_msg);
 
             if tool_calls.is_empty() {
+                if let Some(filename) =
+                    Self::save_report_if_needed(&user_input, &full_content, &self.cwd)
+                {
+                    let save_msg = format!(
+                        "\n{}\n",
+                        format!("📄 Report automatically saved to {}", filename)
+                            .bold()
+                            .green()
+                    );
+                    let _ = tx.send(AgentEvent::Content { content: save_msg }).await;
+                }
                 break;
             }
 
@@ -491,5 +502,129 @@ impl DeepSeekAgent {
         }
 
         Ok(())
+    }
+
+    pub fn save_report_if_needed(
+        user_input: &str,
+        full_content: &str,
+        cwd: &std::path::Path,
+    ) -> Option<String> {
+        if full_content.is_empty() {
+            return None;
+        }
+
+        let is_report = {
+            let user_input_lower = user_input.to_lowercase();
+            user_input_lower.contains("report")
+                || user_input_lower.contains("rapor")
+                || full_content.lines().any(|line| {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with('#') {
+                        let lower = trimmed.to_lowercase();
+                        lower.contains("report") || lower.contains("rapor")
+                    } else {
+                        false
+                    }
+                })
+        };
+
+        if !is_report {
+            return None;
+        }
+
+        let mut title = None;
+        for line in full_content.lines() {
+            let trimmed = line.trim();
+            if let Some(stripped) = trimmed.strip_prefix("# ") {
+                title = Some(stripped.trim().to_string());
+                break;
+            } else if let Some(stripped) = trimmed.strip_prefix("## ") {
+                title = Some(stripped.trim().to_string());
+                break;
+            }
+        }
+
+        let base_filename = if let Some(t) = title {
+            let mut slug: String = t
+                .chars()
+                .map(|c| {
+                    if c.is_alphanumeric() {
+                        c.to_ascii_lowercase()
+                    } else {
+                        '_'
+                    }
+                })
+                .collect();
+            while slug.contains("__") {
+                slug = slug.replace("__", "_");
+            }
+            slug = slug.trim_matches('_').to_string();
+            if slug.is_empty() {
+                "report".to_string()
+            } else {
+                slug
+            }
+        } else {
+            "report".to_string()
+        };
+
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+        let filename = format!("{}_{}.md", base_filename, timestamp);
+        let file_path = cwd.join(&filename);
+
+        if std::fs::write(&file_path, full_content).is_ok() {
+            Some(filename)
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    #[test]
+    fn test_save_report_if_needed() {
+        let temp_dir = std::env::temp_dir();
+
+        // 1. Non-report response should not be saved
+        let res1 = DeepSeekAgent::save_report_if_needed(
+            "hello",
+            "This is just a regular response.",
+            &temp_dir,
+        );
+        assert!(res1.is_none());
+
+        // 2. Report by user prompt keyword
+        let res2 = DeepSeekAgent::save_report_if_needed(
+            "please generate a report on performance",
+            "Performance looks great.",
+            &temp_dir,
+        );
+        assert!(res2.is_some());
+        let file_name = res2.unwrap();
+        let path = temp_dir.join(&file_name);
+        assert!(path.exists());
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "Performance looks great."
+        );
+        let _ = fs::remove_file(path);
+
+        // 3. Report by response header markdown keyword
+        let res3 = DeepSeekAgent::save_report_if_needed(
+            "some query",
+            "# Final Project Report\nEverything is completed.",
+            &temp_dir,
+        );
+        assert!(res3.is_some());
+        let file_name = res3.unwrap();
+        assert!(file_name.starts_with("final_project_report_"));
+        let path = temp_dir.join(&file_name);
+        assert!(path.exists());
+        let _ = fs::remove_file(path);
     }
 }

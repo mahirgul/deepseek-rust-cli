@@ -38,7 +38,11 @@ impl DeepSeekAgent {
         let mut messages = load_history(&sid);
 
         if messages.is_empty() {
-            let mut base_prompt = config.system_prompt.clone();
+            let cwd_path = std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .to_string_lossy()
+                .to_string();
+            let mut base_prompt = config.system_prompt.replace("{cwd}", &cwd_path);
             if config.concise_reasoning {
                 base_prompt.push_str(
                     "\nKeep your internal reasoning/thinking process very short and concise.",

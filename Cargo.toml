@@ -1,6 +1,6 @@
 [package]
 name = "deepseek-rust-cli"
-version = "1.20.7"
+version = "1.20.8"
 edition = "2021"
 authors = ["Mahir Gül <mahirgul@gmail.com>"]
 description = "A lightweight, high-speed autonomous CLI system agent port of DeepSeek CLI."

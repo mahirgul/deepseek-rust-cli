@@ -97,13 +97,14 @@ fn default_thinking_enabled() -> bool {
 fn default_reasoning_effort() -> Option<String> {
     Some("high".to_string())
 }
-const DEFAULT_SYSTEM_PROMPT: &str =
-    "You are a terminal-based AI coding assistant running on {os} via {shell}.
+const DEFAULT_SYSTEM_PROMPT: &str = "You are a terminal-based AI coding assistant running on {os} \
+                                     via {shell} in the workspace {cwd}.
 Be concise and practical. You have full access to the workspace to read/write files and execute \
-     commands.
+                                     commands.
 Explain your actions briefly. To save tokens: do not print full file contents in your response \
-     (use diffs/summaries instead), do not repeat tool outputs verbatim, and keep reasoning and \
-     responses as short as possible.";
+                                     (use diffs/summaries instead), do not repeat tool outputs \
+                                     verbatim, and keep reasoning and responses as short as \
+                                     possible.";
 
 /// Initialize the .deep directory structure in the current workspace.
 /// Creates .deep/ folder with config.json, memory.md, and history/ subdirectory
