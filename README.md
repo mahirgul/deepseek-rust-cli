@@ -19,7 +19,8 @@ An autonomous AI software engineer and CLI assistant powered by DeepSeek. This p
 - **🧠 Advanced Reasoning:** Real-time display of the model's thinking process (DeepSeek Reasoning) in a dimmed style with a `🧠 Thinking Process:` header to keep it visually separate from the main response.
 - **💬 Structured Responses:** The final assistant output is clearly prefixed with a `💬 Response:` header.
 - **🛠️ Extensible Toolset:** 65+ tools (including line-based file edits, unified diff patching, background process lifecycle and logs tracking, network port checking, regex replacements, JSON configs, code symbol and AST-like detail parsing, DuckDuckGo web search, headless screenshots, and more) managed by a trait-based registry system.
-- **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands update the agent's environment state.
+- **🐚 Stateful Shell:** Persistent working directory (CWD) support — `cd` commands update the agent's environment state. The active directory is dynamically injected into the system prompt via `{cwd}` placeholder (along with `{os}` and `{shell}`), ensuring the agent always knows its exact working directory.
+- **📄 Automatic Report Saving:** Automatically detects when the assistant generates a report (either triggered by user prompt keywords like "report"/"rapor" or markdown headers like `# Report`/`# Rapor`). The report is saved to a slugified markdown file (e.g., `project_status_report_YYYYMMDD_HHMMSS.md`) in the current directory, with a confirmation log printed in the TUI.
 - **🎨 Rich TUI Engine:** 
   - **4-Line Dynamic Footer:** Real-time status, folder info, token usage, and command queue.
   - **Horizontal Queue:** Visualize pending and executing tasks at a glance.
