@@ -69,8 +69,10 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
         }
         "/undo" => Ok(Some(agent.undo())),
         "/tokens" => Ok(Some(format!(
-            "Token Usage: {} prompt, {} completion (Total: {})",
+            "Token Usage: {} prompt (Hit: {}, Miss: {}), {} completion (Total: {})",
             agent.token_usage.prompt_tokens,
+            agent.token_usage.prompt_cache_hit_tokens,
+            agent.token_usage.prompt_cache_miss_tokens,
             agent.token_usage.completion_tokens,
             agent.token_usage.prompt_tokens + agent.token_usage.completion_tokens
         ))),
@@ -102,13 +104,15 @@ pub async fn process_command(agent: &mut DeepSeekAgent, text: &str) -> Result<Op
         "/info" => {
             let info = format!(
                 "Session ID: {}\nModel: {}\nTemperature: {}\nAuto-approve: {}\nHistory length: {} \
-                 messages\nTokens: P:{} C:{} T:{}",
+                 messages\nTokens: P:{} (Hit:{} Miss:{}) C:{} T:{}",
                 agent.session_id,
                 agent.model,
                 agent.config.temperature,
                 agent.auto_approve,
                 agent.messages.len(),
                 agent.token_usage.prompt_tokens,
+                agent.token_usage.prompt_cache_hit_tokens,
+                agent.token_usage.prompt_cache_miss_tokens,
                 agent.token_usage.completion_tokens,
                 agent.token_usage.prompt_tokens + agent.token_usage.completion_tokens
             );

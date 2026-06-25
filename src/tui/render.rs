@@ -65,10 +65,20 @@ pub fn render_footer(stdout: &mut io::Stdout, app: &App) -> io::Result<()> {
 
     let total_tokens = app.total_tokens();
     let token_str = if total_tokens > 0 {
-        format!(
-            " | 📊 {} prompt · {} comp · {} total",
-            app.token_usage.prompt_tokens, app.token_usage.completion_tokens, total_tokens
-        )
+        if app.token_usage.prompt_cache_hit_tokens > 0 {
+            format!(
+                " | 📊 {} prompt ({} hit) · {} comp · {} total",
+                app.token_usage.prompt_tokens,
+                app.token_usage.prompt_cache_hit_tokens,
+                app.token_usage.completion_tokens,
+                total_tokens
+            )
+        } else {
+            format!(
+                " | 📊 {} prompt · {} comp · {} total",
+                app.token_usage.prompt_tokens, app.token_usage.completion_tokens, total_tokens
+            )
+        }
     } else {
         String::new()
     };

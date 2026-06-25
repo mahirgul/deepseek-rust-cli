@@ -154,6 +154,10 @@ impl DeepSeekAgent {
                             if let Some(usage) = chunk.usage {
                                 self.token_usage.prompt_tokens += usage.prompt_tokens;
                                 self.token_usage.completion_tokens += usage.completion_tokens;
+                                self.token_usage.prompt_cache_hit_tokens +=
+                                    usage.prompt_cache_hit_tokens;
+                                self.token_usage.prompt_cache_miss_tokens +=
+                                    usage.prompt_cache_miss_tokens;
                             }
 
                             for choice in chunk.choices {
@@ -488,16 +492,33 @@ impl DeepSeekAgent {
 
         if self.config.show_token_usage {
             let total = self.token_usage.prompt_tokens + self.token_usage.completion_tokens;
-            let usage_msg = format!(
-                "\n{} [{} {} | {} {} | {} {}]\n",
-                "📊 Token Usage:".bold().blue(),
-                "Prompt:".cyan(),
-                self.token_usage.prompt_tokens.to_string().cyan(),
-                "Completion:".green(),
-                self.token_usage.completion_tokens.to_string().green(),
-                "Total:".yellow(),
-                total.to_string().yellow()
-            );
+            let hit = self.token_usage.prompt_cache_hit_tokens;
+            let miss = self.token_usage.prompt_cache_miss_tokens;
+            let usage_msg = if hit > 0 || miss > 0 {
+                format!(
+                    "\n{} [{} {} (Hit: {}, Miss: {}) | {} {} | {} {}]\n",
+                    "📊 Token Usage:".bold().blue(),
+                    "Prompt:".cyan(),
+                    self.token_usage.prompt_tokens.to_string().cyan(),
+                    hit.to_string().green(),
+                    miss.to_string().red(),
+                    "Completion:".green(),
+                    self.token_usage.completion_tokens.to_string().green(),
+                    "Total:".yellow(),
+                    total.to_string().yellow()
+                )
+            } else {
+                format!(
+                    "\n{} [{} {} | {} {} | {} {}]\n",
+                    "📊 Token Usage:".bold().blue(),
+                    "Prompt:".cyan(),
+                    self.token_usage.prompt_tokens.to_string().cyan(),
+                    "Completion:".green(),
+                    self.token_usage.completion_tokens.to_string().green(),
+                    "Total:".yellow(),
+                    total.to_string().yellow()
+                )
+            };
             let _ = tx.send(AgentEvent::Content { content: usage_msg }).await;
         }
 

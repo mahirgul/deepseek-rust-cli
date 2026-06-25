@@ -68,10 +68,17 @@ export DEEPSEEK_API_KEY="your_api_key_here"
 
 Optional settings are stored in `.deep/config.json` and can be managed via the `/config` slash command.
 
-### 🪙 Token Optimization Settings
+### 🪙 Token Optimization & Caching Settings
 To optimize and reduce token consumption, the following custom settings are supported:
 - `max_context_chars` (default `100000`): The maximum character length of active session history kept. Older messages are automatically pruned when this limit is exceeded.
 - `max_tool_output_chars` (default `15000`): The maximum character length of a single tool execution's output stored in the chat history. Extremely long outputs (e.g., compile logs) are truncated to save context window tokens.
+
+**Real-time Cache Tracking (KV Cache):**
+DeepSeek's Context Caching is tracked in real-time. The CLI displays prompt cache hits next to prompt tokens in:
+- The **TUI Footer** (displays as `prompt (X hit)`)
+- The `/tokens` and `/info` slash commands
+- The iteration summary printed at the end of tool executions (if `show_token_usage` is enabled)
+For a complete guide, see the [Token Optimization & Caching documentation](docs/src/token_optimization.md).
 
 ### GitHub Integration (Optional)
 ```bash
