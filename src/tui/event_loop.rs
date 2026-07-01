@@ -220,6 +220,47 @@ impl EventLoop {
         }
         write_to_output(&mut stdout, &mut app, "\n".to_string())?;
 
+        // DeepSeek Pricing Peak Hours Reminder in Local Time
+        {
+            use chrono::TimeZone;
+            let now_utc = chrono::Utc::now();
+            let date_utc = now_utc.date_naive();
+
+            let p1_start_utc =
+                chrono::Utc.from_utc_datetime(&date_utc.and_hms_opt(1, 0, 0).unwrap());
+            let p1_end_utc = chrono::Utc.from_utc_datetime(&date_utc.and_hms_opt(4, 0, 0).unwrap());
+            let p2_start_utc =
+                chrono::Utc.from_utc_datetime(&date_utc.and_hms_opt(6, 0, 0).unwrap());
+            let p2_end_utc =
+                chrono::Utc.from_utc_datetime(&date_utc.and_hms_opt(10, 0, 0).unwrap());
+
+            let p1_start_local = p1_start_utc.with_timezone(&chrono::Local);
+            let p1_end_local = p1_end_utc.with_timezone(&chrono::Local);
+            let p2_start_local = p2_start_utc.with_timezone(&chrono::Local);
+            let p2_end_local = p2_end_utc.with_timezone(&chrono::Local);
+
+            let p1_start_str = p1_start_local.format("%H:%M").to_string();
+            let p1_end_str = p1_end_local.format("%H:%M").to_string();
+            let p2_start_str = p2_start_local.format("%H:%M").to_string();
+            let p2_end_str = p2_end_local.format("%H:%M").to_string();
+
+            let header = "🔔 IMPORTANT PRICING REMINDER (DeepSeek API)"
+                .yellow()
+                .bold()
+                .to_string();
+            let msg = format!(
+                "  {}\n  Starting mid-July, a peak-valley pricing strategy will be adopted.\n  \
+                 Peak-hour prices will be twice the regular price (2x) for all billing items.\n  \
+                 Peak hours in your local time:\n  ⏰ {} - {}\n  ⏰ {} - {}\n\n",
+                header,
+                p1_start_str.red().bold(),
+                p1_end_str.red().bold(),
+                p2_start_str.red().bold(),
+                p2_end_str.red().bold()
+            );
+            write_to_output(&mut stdout, &mut app, msg)?;
+        }
+
         let mut last_size = (term_width, term_height);
         render_footer(&mut stdout, &app)?;
 
