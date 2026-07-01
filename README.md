@@ -4,7 +4,7 @@
 
 
 
-An autonomous AI software engineer and CLI assistant powered by DeepSeek. This project was developed with the assistance of **Gemini CLI**.
+An autonomous AI software engineer and CLI assistant powered by DeepSeek. This project was developed and continues to be developed using **Antigravity**, **Gemini**, and **DeepSeek**.
 
 > **⚠️ Note:** This project is currently in a **Testing & Development** phase. Use it at your own risk.
 
